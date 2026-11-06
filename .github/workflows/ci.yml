@@ -194,7 +194,9 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Commit metadata has no AI co-author or generated-by trailers
         run: |
-          if git log --format='%B' | grep -iE '^(co-authored-by:.*(claude|anthropic|openai|copilot)|generated (with|by) )'; then
+          # AI co-author trailers and AI "generated with/by" footers; ordinary prose about project scripts is fine.
+          AI='(claude|anthropic|openai|chatgpt|copilot|gpt-|gemini|llm|\bai\b)'
+          if git log --format='%B' | grep -iE "^(co-authored-by:.*$AI|.*generated (with|by) .*$AI)"; then
             echo "found AI attribution trailer"; exit 1
           fi
 
