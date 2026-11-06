@@ -151,7 +151,16 @@ Traced causes, both fixed before run 3:
    playbook allows incident links. The same commit provisions default playbooks at registration; before it, a new
    operational organization had none and could not start an investigation.
 
-<!-- RUN3 -->
+### Run 3: stopped early at `2794ba1`
+
+Rows: [`full-r3-2794ba1-partial-rows.jsonl`](../evals/results/full-r3-2794ba1-partial-rows.jsonl) (rules complete; agent
+stopped after 50 cases). It was stopped because how-to questions were going to clarification (14 of 21 how-to cases,
+against 18 in run 1): the clarification rule described failure reports and the model applied it to questions, and the
+plan record that answers entitlement questions was not shown on the adaptive path. *Fix (`b45a4fe`):* a positive rule
+for answering questions and the plan-record answer in the code-computed signals. No further changes were made
+after run 4 started; run 4 is the declared final measurement on these splits.
+
+<!-- RUN4 -->
 
 
 ## Claim verification calibration
