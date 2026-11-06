@@ -1,0 +1,779 @@
+{
+  "generated_at": "20261106T181122",
+  "commit": "411603600d369a9891c3e887a3857a749bfba046",
+  "verifier": {
+    "kind": "local_model",
+    "model": "qwen3:4b-instruct",
+    "digest": "0edcdef34593eac1aa2be9c7d06c432dcf81945adca5eca2f27662c18f168ba0",
+    "timeout_seconds": 30.0
+  },
+  "dataset": {
+    "file": "evals/datasets/claims_calibration.jsonl",
+    "sha256": "6ef5d6751f1d70b8",
+    "labels": "maintainer-drafted with AI assistance; not independent human annotation",
+    "dev": "claims_v1: used while building the typed rules (not held out)",
+    "validation": "claims_v1_val: written before the verifier first ran; not used for tuning"
+  },
+  "splits": {
+    "dev": {
+      "items": 28,
+      "answered": 28,
+      "abstained": 0,
+      "correct_on_answered": 27,
+      "contradictions_caught": 9,
+      "contradictions_total": 9,
+      "false_supported": 0,
+      "false_contradicted": 0,
+      "by_method": {
+        "typed_number": {
+          "items": 7,
+          "correct": 7
+        },
+        "semantic_model": {
+          "items": 20,
+          "correct": 19
+        },
+        "typed_entitlement": {
+          "items": 1,
+          "correct": 1
+        }
+      },
+      "confusion": {
+        "supported": {
+          "supported": 11,
+          "contradicted": 0,
+          "insufficient_evidence": 1,
+          "unavailable": 0,
+          "not_a_claim": 0
+        },
+        "contradicted": {
+          "supported": 0,
+          "contradicted": 9,
+          "insufficient_evidence": 0,
+          "unavailable": 0,
+          "not_a_claim": 0
+        },
+        "insufficient_evidence": {
+          "supported": 0,
+          "contradicted": 0,
+          "insufficient_evidence": 7,
+          "unavailable": 0,
+          "not_a_claim": 0
+        }
+      }
+    },
+    "validation": {
+      "items": 24,
+      "answered": 24,
+      "abstained": 0,
+      "correct_on_answered": 22,
+      "contradictions_caught": 5,
+      "contradictions_total": 6,
+      "false_supported": 1,
+      "false_contradicted": 0,
+      "by_method": {
+        "typed_number": {
+          "items": 6,
+          "correct": 5
+        },
+        "semantic_model": {
+          "items": 18,
+          "correct": 17
+        }
+      },
+      "confusion": {
+        "supported": {
+          "supported": 11,
+          "contradicted": 0,
+          "insufficient_evidence": 1,
+          "unavailable": 0,
+          "not_a_claim": 0
+        },
+        "contradicted": {
+          "supported": 1,
+          "contradicted": 5,
+          "insufficient_evidence": 0,
+          "unavailable": 0,
+          "not_a_claim": 0
+        },
+        "insufficient_evidence": {
+          "supported": 0,
+          "contradicted": 0,
+          "insufficient_evidence": 6,
+          "unavailable": 0,
+          "not_a_claim": 0
+        }
+      }
+    }
+  },
+  "rows": [
+    {
+      "item_id": "claim_01",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "9b3124e5f9d5abcc725381d9f8cd92d38ceb11e59cb6cf79f47f848078fb7f84",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_02",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "674d85c2bc085e16a0524fcd7d5fcbd48064db2ccc15f57e222b49d676e05c19",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_03",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "says 50,000 rows; cited source says 25,000 rows",
+      "claim_sha256": "6f4d525bdf685362391ccaaae83c190ca2b7fd97c270203a8d2f60977a3ce5b5",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_04",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "e200273c289efd28dc6adb7c26009bb06d2d9fd5ee54af384fcc5fc8d5e23067",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_05",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "692bf83e7bea41c91f3538741250d37e7ac0d9c9e2a9955d39f9dc7f260133fd",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_06",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "8cfd6e30d0484835f9d8f12d83c0c1ac776e7f360355dea87cd1c7e64b43cd9b",
+      "evidence_sha256": "5f6e7c4e8bd45df4"
+    },
+    {
+      "item_id": "claim_07",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "d6d21feae473e6f7e766453dc09d5f9f17d49dfadf6d02e3c90e78fc6a512e97",
+      "evidence_sha256": "5f6e7c4e8bd45df4"
+    },
+    {
+      "item_id": "claim_08",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "says 10 minutes; cited source says 2 hours",
+      "claim_sha256": "7dcdad745156992a2ecfd75082d6b2040766bf09006d60e3f73aecc3a8d48c55",
+      "evidence_sha256": "5f6e7c4e8bd45df4"
+    },
+    {
+      "item_id": "claim_09",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "68e173f4d0eb5296319b3999b6d044be0e9eb243be6d84068d436844492df4fe",
+      "evidence_sha256": "5f6e7c4e8bd45df4"
+    },
+    {
+      "item_id": "claim_10",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "09022bcff54db159768c09e6870ee563906bc901fb74466b32415abf6a156135",
+      "evidence_sha256": "43d7f0b27f15b3cf"
+    },
+    {
+      "item_id": "claim_11",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "0fd157b356b7dfb2e760ff2534c0d0514ad97d6159e79ead64b497e88c9b02bd",
+      "evidence_sha256": "43d7f0b27f15b3cf"
+    },
+    {
+      "item_id": "claim_12",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_entitlement",
+      "evidence_ids": [],
+      "detail": "plan entitlement sso=False; sentence says available",
+      "claim_sha256": "4cad9bc8b6f371f01d5a8c8a7f3580367b8c7b76f8079e3ee42090977a0b2c70",
+      "evidence_sha256": "43d7f0b27f15b3cf"
+    },
+    {
+      "item_id": "claim_13",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "97c119f25ce7abae50ca7faad393f42527d157989dfd642f0a59e0c981e97d81",
+      "evidence_sha256": "43d7f0b27f15b3cf"
+    },
+    {
+      "item_id": "claim_14",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "b90a5aaf47464c3000ea206c16966350ab0f88c97d8b32ec9d3343b5e6c228ab",
+      "evidence_sha256": "43d7f0b27f15b3cf"
+    },
+    {
+      "item_id": "claim_15",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "894c4b27cd02178bf64bc50a5170f9b407ca9137474ad5a7e8168abed0c6000c",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_16",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "419c5752edc138437b641e46f31d88593d66e9e33f92c26a1651619e7e843207",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_17",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "61f076e9420767baf34d2b8c9f40f9c3acfc10c78a7706a9ef6c150b3a948128",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_18",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "b4cd0fc4d13ebda0f37b404a92bca369c537d49f9989d5c4e37a2cfde1a53167",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_19",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "8b340b02730e24fd252e28ec55d024b924dcaec9a238d44874ea787bee47b762",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_20",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "4878e7cbcf765b7ba170ab2a2a491fbeb035e4a6d3a704b5c0aec9d720e12ac6",
+      "evidence_sha256": "5b1f6363ba2c9d61"
+    },
+    {
+      "item_id": "claim_21",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "9cdfd4a413f5b98c188994430c9e5819f3422d75479b0d5c11558cd83f4f4d30",
+      "evidence_sha256": "5b1f6363ba2c9d61"
+    },
+    {
+      "item_id": "claim_22",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "28f19072f6e7a2f06e6e2ace7208624c0ef0bdb7698cd9bc1307230ac6acc06f",
+      "evidence_sha256": "5b1f6363ba2c9d61"
+    },
+    {
+      "item_id": "claim_23",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "typed_number",
+      "evidence_ids": [],
+      "detail": "no cited source states 24 hours",
+      "claim_sha256": "e68fb37b75c1e2ea1ac6dd4d510f7e899edca1bab03f58a6cdfb7454bc4b4e88",
+      "evidence_sha256": "5b1f6363ba2c9d61"
+    },
+    {
+      "item_id": "claim_24",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "typed_number",
+      "evidence_ids": [],
+      "detail": "no cited source states five times",
+      "claim_sha256": "f4c2fac8e109bbaa905e3fe45616632e474b136105ccd0603a5433802ee41b64",
+      "evidence_sha256": "2c1a8fe2b5900879"
+    },
+    {
+      "item_id": "claim_25",
+      "split": "dev",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "b0e4748ac4bbf84f069f17b3e9af6c2bc093d39a13566b706eab06e166bbb45c",
+      "evidence_sha256": "cd54551e956dce84"
+    },
+    {
+      "item_id": "claim_26",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E2"
+      ],
+      "detail": "",
+      "claim_sha256": "567434f50f0c01da2c833144650fbe7fb7bbbdf908db191235c02f3738d6c2b2",
+      "evidence_sha256": "bdb01d0f9d68fa93"
+    },
+    {
+      "item_id": "claim_27",
+      "split": "dev",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E2"
+      ],
+      "detail": "",
+      "claim_sha256": "64223509d8f5be7784ca1e81a8b9f5df3bcc36ffb9e02d5c89513b1ead32b291",
+      "evidence_sha256": "4ada2cabfa794f2f"
+    },
+    {
+      "item_id": "claim_28",
+      "split": "dev",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E2"
+      ],
+      "detail": "",
+      "claim_sha256": "90445398bb51199d98973be6930bd398324d403eddd91718d7b9c5f10192909a",
+      "evidence_sha256": "cd3077f5b9b3150f"
+    },
+    {
+      "item_id": "claimval_01",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "4b782074a7163e082ff91f658b0dc09f5f3aeacc1914df3ae3a8736bcee392b1",
+      "evidence_sha256": "85e532ab2c28f313"
+    },
+    {
+      "item_id": "claimval_02",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "e4f0915b2eb0a592e242f443f5beb1a82094dde923fb429ab407e96e23f37169",
+      "evidence_sha256": "85e532ab2c28f313"
+    },
+    {
+      "item_id": "claimval_03",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "37b6307214a5b1e72e0197d952b153868b02ee47a883340b6885b6a44e886f21",
+      "evidence_sha256": "85e532ab2c28f313"
+    },
+    {
+      "item_id": "claimval_04",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "bfee9461a092f91a4a5d7eb4ab622b6b5c0920ee908570592edd544a3ca0f8a9",
+      "evidence_sha256": "85e532ab2c28f313"
+    },
+    {
+      "item_id": "claimval_05",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "e2162ca4c4df6dc08016b3bf8d37bc05dfecf215c89086d49d4a5abfbbc63e82",
+      "evidence_sha256": "3999f97761b87f3f"
+    },
+    {
+      "item_id": "claimval_06",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "bd8141d206086e858e63f9e4d6782f57d8ea955256da2ed4843f89e868e9ec78",
+      "evidence_sha256": "3999f97761b87f3f"
+    },
+    {
+      "item_id": "claimval_07",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "d081a51a895b8a36f3131b3201219bcf4fbaa875e9e5471f78c45765cea8b459",
+      "evidence_sha256": "3999f97761b87f3f"
+    },
+    {
+      "item_id": "claimval_08",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "aa336a36c60eda012fbf1a0cb8d180a7b909db1f9790e5ad0f16c55d42944aa8",
+      "evidence_sha256": "3999f97761b87f3f"
+    },
+    {
+      "item_id": "claimval_09",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "ae43b187e0c85c009e3654e4c2d068fe806fdc8f93ffc866bf59386d412890b8",
+      "evidence_sha256": "33b2b94aca91dce5"
+    },
+    {
+      "item_id": "claimval_10",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "4dab4db242dd6a174fa1ac7ba4e34ad22f5ddb1a80575b3f47ff503fc718694d",
+      "evidence_sha256": "33b2b94aca91dce5"
+    },
+    {
+      "item_id": "claimval_11",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "says 1,000 requests per minute; cited source says 600 requests per minute",
+      "claim_sha256": "978c23ebd06004c20d95cf95b761973e07f007ea3e00bba0b61ab3e902a948b5",
+      "evidence_sha256": "33b2b94aca91dce5"
+    },
+    {
+      "item_id": "claimval_12",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "97e4500889a4f561c87ec2fec461baf3723ecf11dd32cfb86f5d7fa035f81915",
+      "evidence_sha256": "33b2b94aca91dce5"
+    },
+    {
+      "item_id": "claimval_13",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "1be2afa919d8f8ddaa46afc414935e3829e10df7fcdec592c71ad1ade0044367",
+      "evidence_sha256": "0647ba94551cef0c"
+    },
+    {
+      "item_id": "claimval_14",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "9c18d377cce3db1c3af803e764b4f92acb6fd62409ac2c1100b39249df54eb86",
+      "evidence_sha256": "0647ba94551cef0c"
+    },
+    {
+      "item_id": "claimval_15",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "0dc37800080f011ea57d2fb9aa4015e0199c20decbd8c2f09df53ff9aac730f6",
+      "evidence_sha256": "0647ba94551cef0c"
+    },
+    {
+      "item_id": "claimval_16",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "9f39031cf055e6cd5b85e2ea32056e364db6ccfaeb8e524b503f1fae6d4c92e4",
+      "evidence_sha256": "0647ba94551cef0c"
+    },
+    {
+      "item_id": "claimval_17",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "1765e6c36b51dae8bd76ac7fe32426f561a154a84cfa985eb7b86f87bd7abe09",
+      "evidence_sha256": "ee11c3379d3bb636"
+    },
+    {
+      "item_id": "claimval_18",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "8b3866098b1b00e89edb78cdd18157380b2cd975d042199a9d8d1a16bfa5c6c1",
+      "evidence_sha256": "ee11c3379d3bb636"
+    },
+    {
+      "item_id": "claimval_19",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "a713e705ac23dc8c8d759bea360060081f059afef028aee5131026847b4a7428",
+      "evidence_sha256": "ee11c3379d3bb636"
+    },
+    {
+      "item_id": "claimval_20",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "",
+      "claim_sha256": "6c100ed04c4224764245fac89bf8b741f092da0f7d444a087712ca19335ab696",
+      "evidence_sha256": "ee11c3379d3bb636"
+    },
+    {
+      "item_id": "claimval_21",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E2"
+      ],
+      "detail": "",
+      "claim_sha256": "37b75b08b0418f7a66c6e63137ce12710384401e42b9e326aafa62e1d1326373",
+      "evidence_sha256": "1e73c404a2d1e4c2"
+    },
+    {
+      "item_id": "claimval_22",
+      "split": "validation",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "typed_number",
+      "evidence_ids": [],
+      "detail": "no cited source states 600 requests per minute",
+      "claim_sha256": "9ab1e6ddcf7f2a8c333026d1d0eeb8e8ae01f3e38ca320fcd7157aaa94f59b29",
+      "evidence_sha256": "ee11c3379d3bb636"
+    },
+    {
+      "item_id": "claimval_23",
+      "split": "validation",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "semantic_model",
+      "evidence_ids": [
+        "E2"
+      ],
+      "detail": "",
+      "claim_sha256": "f22d5576bd2a06d5d4e18518cf601caa95f4f156c8729d4c3fe54318320d0d4e",
+      "evidence_sha256": "6ba2d927d17a3217"
+    },
+    {
+      "item_id": "claimval_24",
+      "split": "validation",
+      "gold": "contradicted",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources",
+      "claim_sha256": "47a4ad7cd921d1c769077468092738877185a243bf0368dfe27c96194a43522b",
+      "evidence_sha256": "85e532ab2c28f313"
+    }
+  ]
+}
