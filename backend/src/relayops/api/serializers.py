@@ -102,6 +102,7 @@ def version(v: DocumentVersion, include_content: bool = True) -> dict[str, Any]:
         "content_hash": v.content_hash,
         "media_type": v.media_type,
         "source_filename": v.source_filename,
+        "extraction": v.extraction,
         "valid_from": iso(v.valid_from),
         "valid_to": iso(v.valid_to),
         "created_at": iso(v.created_at),

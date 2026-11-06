@@ -40,7 +40,11 @@ jobs:
         with:
           version: "0.12.23"
       - run: uv python install 3.12
+      - name: OCR engine for PDF ingestion tests
+        run: sudo apt-get update -q && sudo apt-get install -y -q tesseract-ocr
       - run: uv sync --frozen
+      - name: OCR test must not be skipped
+        run: tesseract --version
       - name: Lint and format
         run: uv run ruff check . && uv run ruff format --check .
       - name: Types

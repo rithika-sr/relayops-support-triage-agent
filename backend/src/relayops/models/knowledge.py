@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, Computed, ForeignKey, Index, Integer, String, Text, UniqueConstraint
@@ -43,6 +44,8 @@ class DocumentVersion(Base):
     content_hash: Mapped[str] = mapped_column(String(64))
     media_type: Mapped[str] = mapped_column(String(64), default="text/markdown")
     source_filename: Mapped[str | None] = mapped_column(String(255))
+    # How the text was obtained when it came from a file other than text (e.g. PDF text layer vs OCR, per page).
+    extraction: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     valid_from: Mapped[datetime | None] = mapped_column(Tz)
     valid_to: Mapped[datetime | None] = mapped_column(Tz)
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))

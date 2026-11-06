@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from relayops.api import serializers as ser
 from relayops.api.deps import DB, current_principal, staff_principal
 from relayops.domain.scope import Principal, ValidationFailed
 from relayops.services import knowledge as knowledge_service
-from relayops.services import retrieval
+from relayops.services import pdf, retrieval
 
 router = APIRouter(prefix="/knowledge", tags=["knowledge"])
 
@@ -59,17 +60,23 @@ async def upload_document(
     db: Session = DB,
 ) -> dict[str, Any]:
     name = (file.filename or "").lower()
-    if name.endswith((".md", ".markdown")):
-        media = "text/markdown"
-    elif name.endswith(".txt"):
-        media = "text/plain"
+    extraction: dict[str, Any] | None = None
+    if name.endswith(".pdf"):
+        raw = await file.read(pdf.MAX_PDF_BYTES + 1)
+        try:
+            content, pages = await run_in_threadpool(pdf.extract, raw)
+        except pdf.PdfRejected as exc:
+            raise ValidationFailed(str(exc)) from exc
+        media, extraction = "application/pdf", pdf.report(pages)
+    elif name.endswith((".md", ".markdown", ".txt")):
+        media = "text/plain" if name.endswith(".txt") else "text/markdown"
+        raw = await file.read(knowledge_service.MAX_DOC_BYTES + 1)
+        try:
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValidationFailed("file must be UTF-8 text") from exc
     else:
-        raise ValidationFailed("upload a Markdown (.md) or plain text (.txt) file")
-    raw = await file.read(knowledge_service.MAX_DOC_BYTES + 1)
-    try:
-        content = raw.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ValidationFailed("file must be UTF-8 text") from exc
+        raise ValidationFailed("upload a PDF, Markdown (.md), or plain text (.txt) file")
     doc, version, changed = knowledge_service.ingest(
         db,
         p,
@@ -86,6 +93,7 @@ async def upload_document(
             valid_to=valid_to,
             media_type=media,
             source_filename=file.filename,
+            extraction=extraction,
         ),
     )
     return {"document": ser.document(doc, version, version.version, p), "changed": changed}

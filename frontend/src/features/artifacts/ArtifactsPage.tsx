@@ -50,6 +50,7 @@ function Detail({ id }: { id: string }) {
         <Select aria-label="Version" value={v.version} onChange={(e) => setView(Number(e.target.value))} className="w-40">{versions.map((x) => <option key={x.version} value={x.version}>v{x.version} · {x.verification_status}</option>)}</Select>
         <a className="inline-flex items-center rounded-md border border-line-strong px-3 py-1.5 text-sm" href={`/api/artifacts/${a.id}/export?format=md`}>Export Markdown</a>
         <a className="inline-flex items-center rounded-md border border-line-strong px-3 py-1.5 text-sm" href={`/api/artifacts/${a.id}/export?format=json`}>Export JSON</a>
+        <a className="inline-flex items-center rounded-md border border-line-strong px-3 py-1.5 text-sm" href={`/api/artifacts/${a.id}/export?format=pdf`}>Export PDF</a>
         {a.run_id ? <Link className="text-sm text-accent-700 hover:underline" href={`/app/investigations/${a.run_id}`}>Open investigation</Link> : null}
       </div>
       {a.kind === "customer_reply" ? <Notice tone="accent">Reply drafts are edited in the review panel so each edit becomes a new proposal version and is re-verified.</Notice> : null}

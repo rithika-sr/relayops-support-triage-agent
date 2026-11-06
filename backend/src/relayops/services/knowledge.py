@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -38,6 +39,7 @@ class DocumentInput:
     valid_to: datetime | None = None
     media_type: str = "text/markdown"
     source_filename: str | None = None
+    extraction: dict[str, Any] | None = None
 
 
 def chunk_markdown(text: str) -> list[tuple[str, str]]:
@@ -160,6 +162,7 @@ def ingest(
         content_hash=digest,
         media_type=inp.media_type,
         source_filename=inp.source_filename,
+        extraction=inp.extraction,
         valid_from=inp.valid_from or now,
         valid_to=inp.valid_to,
         created_by_user_id=p.user_id if p else None,

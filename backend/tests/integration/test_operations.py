@@ -105,7 +105,10 @@ def test_incident_summary_artifact_versions_and_revalidation(db, tmp_path):
     assert md.status_code == 200 and "verification:failed" in md.text
     js = json.loads(support.get(f"/api/artifacts/{art}/export?format=json").text)
     assert [v["version"] for v in js["versions"]] == [2, 1]
-    assert support.get(f"/api/artifacts/{art}/export?format=pdf").status_code == 422
+    pdf_resp = support.get(f"/api/artifacts/{art}/export?format=pdf")
+    assert pdf_resp.status_code == 200 and pdf_resp.headers["content-type"] == "application/pdf"
+    assert pdf_resp.content.startswith(b"%PDF-")
+    assert support.get(f"/api/artifacts/{art}/export?format=docx").status_code == 422
     assert client(CUSTOMER, creds).get(f"/api/artifacts/{art}/export?format=md").status_code == 403
     assert client("admin@quillstack.local", creds).get(f"/api/artifacts/{art}").status_code == 404
 

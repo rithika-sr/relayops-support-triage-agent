@@ -10,7 +10,8 @@ import { COMPONENTS } from "@/features/portal/NewTicketForm";
 
 interface DocDetail {
   document: Doc;
-  versions: { id: string; version: number; content_hash: string; valid_from: string | null; valid_to: string | null; created_at: string; content?: string; source_filename: string | null }[];
+  versions: { id: string; version: number; content_hash: string; valid_from: string | null; valid_to: string | null; created_at: string; content?: string; source_filename: string | null;
+    extraction?: { ocr_pages: number; min_ocr_confidence: number | null; pages: { number: number; method: string }[] } | null }[];
 }
 interface Hit { chunk_id: string; slug: string; title: string; heading: string; kind: string; visibility: string; version: number; authority: number; score: number; text: string; ranks: Record<string, number> }
 
@@ -30,7 +31,7 @@ function Upload({ accounts }: { accounts?: Account[] }) {
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF({ ...f, [k]: e.target.value });
   return (
     <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
-      <Field id="kf" label="File (.md or .txt, UTF-8, ≤200 KB)"><Input id="kf" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
+      <Field id="kf" label="File (PDF up to 10 MB, or .md / .txt up to 200 KB)" hint="Scanned PDF pages are read with OCR; each page records how its text was read."><Input id="kf" type="file" accept=".pdf,.md,.markdown,.txt,application/pdf,text/markdown,text/plain" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></Field>
       <Field id="ks" label="Slug" hint="Re-using a slug creates a new version."><Input id="ks" value={f.slug} onChange={set("slug")} placeholder="exporting-projects" /></Field>
       <Field id="kt" label="Title"><Input id="kt" value={f.title} onChange={set("title")} /></Field>
       <Field id="kk" label="Kind"><Select id="kk" value={f.kind} onChange={set("kind")}>{["policy", "article", "runbook", "release_note", "historical_case"].map((k) => <option key={k}>{k}</option>)}</Select></Field>
@@ -104,7 +105,7 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
       </div>
       {status.error ? <Notice tone="danger">{status.error.detail}</Notice> : null}
       <h3 className="mt-3 text-sm font-semibold">Versions</h3>
-      <ul className="text-xs">{versions.map((v) => <li key={v.id}>v{v.version} · <Mono>{shortHash(v.content_hash)}</Mono> · {fmtDate(v.created_at)} {v.valid_to ? `· ended ${fmtDate(v.valid_to)}` : ""} {v.source_filename ? `· ${v.source_filename}` : ""}</li>)}</ul>
+      <ul className="text-xs">{versions.map((v) => <li key={v.id}>v{v.version} · <Mono>{shortHash(v.content_hash)}</Mono> · {fmtDate(v.created_at)} {v.valid_to ? `· ended ${fmtDate(v.valid_to)}` : ""} {v.source_filename ? `· ${v.source_filename}` : ""}{v.extraction ? ` · ${v.extraction.pages.length} PDF page(s)${v.extraction.ocr_pages ? `, ${v.extraction.ocr_pages} read by OCR (lowest confidence ${v.extraction.min_ocr_confidence ?? "n/a"}); check the text before relying on it` : ", text layer"}` : ""}</li>)}</ul>
       {current?.content ? <pre className="mt-3 max-h-80 overflow-auto rounded bg-paper p-3 text-xs whitespace-pre-wrap">{current.content}</pre> : null}
     </Card>
   );

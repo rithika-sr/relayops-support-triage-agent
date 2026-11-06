@@ -8,11 +8,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from relayops.core.clock import utcnow
 from relayops.core.security import content_hash
 from relayops.domain.scope import Conflict, Principal, ValidationFailed
-from relayops.models import Artifact, ArtifactVersion, Incident, IncidentTicketLink, Proposal, Ticket
+from relayops.models import Artifact, ArtifactVersion, Incident, IncidentTicketLink, Organization, Proposal, Ticket
 from relayops.repositories import scoped
-from relayops.services import audit
+from relayops.services import audit, pdf
 
 
 def add_version(
@@ -268,7 +269,7 @@ def _claimed_count(text: str, label: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def export(db: Session, p: Principal, artifact_id: str, fmt: str) -> tuple[str, str, str]:
+def export(db: Session, p: Principal, artifact_id: str, fmt: str) -> tuple[str | bytes, str, str]:
     a, versions = detail(db, p, artifact_id)
     current = versions[0]
     if fmt == "md":
@@ -304,4 +305,22 @@ def export(db: Session, p: Principal, artifact_id: str, fmt: str) -> tuple[str, 
             indent=2,
         )
         return body, "application/json", f"{a.id}.json"
-    raise ValidationFailed("format must be md or json")
+    if fmt == "pdf":
+        org = db.get(Organization, a.organization_id)
+        body_pdf = pdf.render(
+            title=a.title,
+            org=org.name if org else a.organization_id,
+            meta=[
+                ("Artifact", f"{a.id} v{current.version}"),
+                ("Kind", a.kind.replace("_", " ")),
+                ("Review", a.review_status),
+                ("Verification", current.verification_status),
+                ("Content SHA-256", current.content_hash),
+                ("Sources", str(len(current.sources))),
+            ],
+            body=current.content,
+            data_class=a.data_class,
+            generated_at=utcnow(),
+        )
+        return body_pdf, "application/pdf", f"{a.id}-v{current.version}.pdf"
+    raise ValidationFailed("format must be md, json, or pdf")
