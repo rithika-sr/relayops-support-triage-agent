@@ -41,7 +41,10 @@ the evidence. Rules:
 - new_engineering_handoff when the ticket reports a concrete failure (an error code, or a named feature failing in a
   described way) and no known issue or active incident matches it. List missing details as missing_facts; engineering
   can start without them.
-- clarification when the customer has not said what fails or what they want (no error, no feature or page named, no
+- answer_draft when the customer asks a question (how to do something, what their plan includes, how a feature
+  behaves) that the evidence or the plan record answers. A question is not a failure report: do not ask it for an
+  error code or steps.
+- clarification when the customer reports a problem but has not said what fails or what they want (no error, no feature or page named, no
   steps) and no record lookup identifies the problem; ask for exactly those facts. When the records do identify the
   problem, missing details are not a reason to ask.
 - Security-sensitive reports go to specialist_review.
@@ -161,6 +164,11 @@ def signals_block(ctx: dict[str, Any], state: dict[str, Any]) -> str:
         f"- required facts not yet known: {missing or 'none'}\n"
         f"- historical cases (lower authority than current policy): {obsolete or 'none'}\n"
         f"- trusted record lookup: {lookup}"
+        + (
+            f"\n- the plan record answers an entitlement question: {t['entitlement_topic']} = {t['entitlement_value']}"
+            if t.get("entitlement_topic")
+            else ""
+        )
     )
 
 

@@ -337,3 +337,11 @@ def test_disallowed_model_route_asks_the_customer_instead_of_restricting(db, tmp
         from relayops.models import Ticket
 
         assert s.get(Ticket, d["run"]["ticket_id"]).restricted is False
+
+
+def test_adaptive_path_sees_the_plan_record_for_entitlement_questions(db, tmp_path):
+    creds = seeded(db, tmp_path)
+    script = _extract(None, None, None)
+    _agent_run(creds, {"subject": "Can we turn on SSO?", "body": "We are on Business. Can we enable SAML SSO?"}, script)
+    assert "the plan record answers an entitlement question: sso = False" in script.propose_prompt
+    assert "A question is not a failure report" in __import__("relayops.agents.prompts", fromlist=["x"]).PROPOSE_SYSTEM
