@@ -52,7 +52,7 @@ configured origins. All tools are annotated read-only and none writes records. S
 
 ## Secrets and local files
 
-`make setup` writes `.env` (mode 0600) with a random Postgres password and session secret. `make seed` writes demo
+`make setup` writes `.env` (mode 0600) with a random Postgres password and session secret. `make seed-demo` writes demo
 passwords to `.local/demo-credentials.json` (mode 0600). `.env`, `.local/`, `.claude/`, and `CLAUDE.md` are
 git-ignored, and `scripts/check_repo.py` fails CI if such files are tracked or credential patterns appear.
 

@@ -19,17 +19,25 @@ Measured on the development machine (Apple M5, 16 GB): a live bug investigation 
 make setup      # writes .env (0600) with fresh secrets, installs pinned deps, starts Postgres, migrates
 ollama pull qwen3:4b-instruct
 ollama pull embeddinggemma
-make seed       # idempotent synthetic world; demo logins in .local/demo-credentials.json (0600, git-ignored)
-make dev        # API on :8020, worker, web on :3020
+make dev        # operational instance (empty): API on :8020, worker, web on :3020
 make doctor     # verify everything is reachable
 ```
 
-`make seed` prints counts and the credentials path. The credentials file contains the three demo accounts
-(`admin@relayops.local`, `support@relayops.local`, `customer@northstar.local`) with generated passwords and the local
-URLs. Re-running `make seed` keeps the same passwords. Passwords are stored in the database as Argon2 hashes only.
+The operational database starts empty and records its data mode; the API and worker refuse to start if the
+configured mode does not match. For the synthetic world, use the separate demo database:
 
-The world is anchored at the hour you first seed (`RELAYOPS_WORLD_ANCHOR=now`), so deployments, incidents, and error
-aggregates are recent. To re-anchor later, run `make reset-db` (drops and recreates the local demo database).
+```bash
+make seed-demo  # creates/migrates the demo database and seeds it; refuses an operational database
+make demo-dev   # demo instance: API :8030, worker, web :3030, with a demo banner on every page
+```
+
+`make seed-demo` prints counts and the credentials path. `.local/demo-credentials.json` (0600, git-ignored) holds
+the three demo accounts (`admin@relayops.local`, `support@relayops.local`, `customer@northstar.local`) with generated
+passwords. Re-seeding keeps the same passwords. Passwords are stored in the database as Argon2 hashes only.
+
+The demo world is anchored at the hour you first seed (`RELAYOPS_WORLD_ANCHOR=now`), so deployments, incidents, and
+error aggregates are recent. To re-anchor, run `make demo-reset` (backs up, then drops and re-seeds the demo database
+only).
 
 ## Ports
 
@@ -54,7 +62,7 @@ aggregates are recent. To re-anchor later, run `make reset-db` (drops and recrea
 | `make e2e` | Playwright journey against the running stack |
 | `make eval-offline` | Deterministic evaluation gates |
 | `make eval-live-smoke` | Measured live subset (about 6 minutes on the development machine) |
-| `make eval-full` | All dev and validation cases for all three systems; the test split stays frozen |
+| `make eval-full` | All dev and validation cases for all four systems, both datasets; resumable; the test splits stay frozen |
 | `make screenshots` | Capture `docs/images` from the running app |
 | `make check-repo` | Secret patterns, tracked local-only files, documentation links |
 
@@ -76,7 +84,7 @@ Playwright's Chromium is installed into `frontend/node_modules` (`PLAYWRIGHT_BRO
 | --- | --- |
 | Settings shows "Ollama unavailable" or runs fail with `model_unavailable` | Start Ollama, `ollama pull` the models, then press "Retry from checkpoint" on the run |
 | "embedding dimension ... does not match" | The configured embedding model is not 768-d; use `embeddinggemma` or change `RELAYOPS_EMBED_DIM` and re-seed into a fresh database |
-| Settings shows "model mismatch" for the index | The index was built with another embedding model; `make reset-db` |
+| Settings shows "model mismatch" for the index | The index was built with another embedding model; re-ingest the documents (demo: `make demo-reset`) |
 | 403 "CSRF token missing or invalid" from scripts | Send `X-CSRF-Token` equal to the `relayops_csrf` cookie and a matching `Origin` |
 | Login returns 429 | Too many failed attempts; wait 15 minutes |
 | Run stays `queued` | The worker is not running; `make dev` starts it |

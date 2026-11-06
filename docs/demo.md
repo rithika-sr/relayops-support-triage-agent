@@ -1,6 +1,7 @@
 # Demo walkthrough
 
-Prerequisites: `make setup`, the two Ollama models, `make seed`, `make dev`. Sign-in passwords are in
+Prerequisites: `make setup`, the two Ollama models, `make seed-demo`, `make demo-dev` (web on :3030). Every page
+shows the demo banner. Sign-in passwords are in
 `.local/demo-credentials.json`; `make demo` prints the URLs and accounts without showing passwords.
 
 ## 1. Customer reports a problem
@@ -14,7 +15,7 @@ after review.
 
 Sign in as `support@relayops.local`. The Inbox lists the ticket with its account and a live first-response countdown
 (Business, normal priority: 12 elapsed hours). Open it: account entitlements and the target reasons are on the right.
-Choose **Bug investigation** and **Launch investigation**.
+Choose the **Bug investigation** playbook and **Investigate**.
 
 The investigation workspace streams persisted events: extraction, up to four investigation turns with their stated
 purposes, each tool call and observation, routing, the customer-evidence view, and verification. With the seeded
@@ -23,10 +24,12 @@ shows each source's visibility, version, and hashes; deployments carry a correla
 
 ## 3. Review the exact version
 
-Read the draft. Verification lists provenance, visibility, currency, entitlement, disclosure, causal, outage, and
-issue-link checks; each sentence is labeled `provenance_checked` or `semantically_unverified` by lexical overlap,
-which is not proof. Fix anything wrong (for example the export option is called "Prepare in background"), **Save
-edit as v2**, then **Approve v2**. The worker executes once: the receipt says the reply was recorded in RelayOps only.
+Read the draft under **Customer will see exactly this**. **Review status** groups the checks: provenance (sources
+exist, are customer-visible, and are current), policy (entitlements, disclosure, causal and outage claims, issue
+links), claim support (each sentence's verdict and how it was reached: plan record, number in a cited source, local
+model judgment, or not checked), and human review. Fix anything wrong (for example the export option is called
+"Prepare in background") and **Save edit as version 2**; the edit is re-checked with typed rules, and claims the
+sources could not confirm need the acknowledgment checkbox before **Approve and publish reply** is enabled. The worker executes once: the receipt says the reply was recorded in RelayOps only.
 
 ## 4. Customer sees the approved reply
 
@@ -49,3 +52,14 @@ shows the action receipt and the ENG-101 link.
 
 Sign in as `admin@relayops.local` for Audit, Evaluations (import the committed reports from `evals/results`),
 playbook revisions, members, customer invitations (link shown once, never emailed), and read-scoped tokens.
+
+## 7. Customer Help and Customer Success
+
+As the customer, open **Help**, search "export rows limit", open an article, and answer **Did this answer your
+question?** Choosing **No** opens a contact form that carries the article and search to support. The portal's
+**Getting started** list fills in from what the account has done (sign-in, first ticket, first reviewed reply, a Help
+article read, a second portal user).
+
+As staff, **Customer Success** shows each account's counts and friction signals, weekly retention cohorts (weeks not
+yet reachable show "pending"), opportunity cards with the rule and evidence behind each, and experiments on Help
+ranking. In a demo instance these count demo records only and say so; an operational instance never counts them.
