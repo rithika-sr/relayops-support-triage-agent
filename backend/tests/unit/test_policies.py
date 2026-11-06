@@ -58,3 +58,19 @@ def test_customer_principal_requires_account():
             role="customer",
             customer_account_id=None,
         )
+
+
+@pytest.mark.parametrize(
+    ("text", "restricted"),
+    [
+        ("Can we enable SSO from Settings > Security?", False),
+        ("Our security team wants an audit log export", False),
+        ("I found a security vulnerability in comments (XSS)", True),
+        ("An API token was exposed in a public screenshot: leaked token", True),
+        ("Possible unauthorized access to our workspace", True),
+    ],
+)
+def test_security_sensitivity_rule(text, restricted):
+    from relayops.domain.policies import is_security_sensitive
+
+    assert is_security_sensitive(text) is restricted

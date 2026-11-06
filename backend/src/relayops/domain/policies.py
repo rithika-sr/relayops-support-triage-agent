@@ -36,7 +36,9 @@ COMPONENTS = ("exports", "sso", "webhooks", "billing", "notifications", "api", "
 
 _URGENT_WORDS = re.compile(r"\b(outage|down for everyone|all users|cannot log ?in|data loss|production down)\b", re.I)
 _SECURITY_WORDS = re.compile(
-    r"\b(security|vulnerab\w*|exploit|breach|leak(ed)?|unauthori[sz]ed access|exposed (data|token|key)|xss|csrf)\b",
+    r"\b(security (issue|vulnerability|incident|bug|hole|problem|report|flaw)|vulnerab\w*|exploit\w*|breach\w*|"
+    r"leak(ed|ing)? (token|key|password|credential|data)\w*|unauthori[sz]ed access|"
+    r"exposed (data|token|key|password|credential)\w*|xss|csrf|sql injection|account takeover)\b",
     re.I,
 )
 
