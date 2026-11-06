@@ -22,6 +22,7 @@ function Admin() {
   const revoke = useMutation<unknown, ApiError, string>({ mutationFn: (id) => api.post(`/settings/tokens/${id}/revoke`), onSuccess: () => qc.invalidateQueries({ queryKey: ["tokens"] }) });
   return (
     <>
+      <AccountsCard accounts={accounts.data ?? []} />
       <Card title="Members">
         {members.isLoading ? <Loading /> : members.error ? <ErrorState error={members.error} /> : (
           <ul className="text-sm">{members.data!.map((m) => <li key={m.email}>{m.name} · {m.email} <Badge>{m.role}</Badge>{m.customer_account ? <span className="text-xs text-muted"> {m.customer_account}</span> : null}</li>)}</ul>
@@ -84,5 +85,28 @@ export function SettingsPage() {
       </Card>
       {me.data?.role === "admin" ? <Admin /> : <Notice>Organization membership, invitations, and tokens are managed by an admin.</Notice>}
     </div>
+  );
+}
+
+function AccountsCard({ accounts }: { accounts: Account[] }) {
+  const qc = useQueryClient();
+  const [f, setF] = useState({ name: "", plan: "team", product_version: "" });
+  const add = useMutation<Account, ApiError>({
+    mutationFn: () => api.post("/settings/accounts", f),
+    onSuccess: () => { setF({ ...f, name: "", product_version: "" }); qc.invalidateQueries({ queryKey: ["accounts"] }); },
+  });
+  return (
+    <Card title="Customer accounts">
+      {accounts.length ? (
+        <ul className="text-sm">{accounts.map((a) => <li key={a.id}>{a.name} <Badge>{a.plan}</Badge> <span className="text-xs text-muted">version {a.product_version}</span></li>)}</ul>
+      ) : <p className="text-sm text-muted">No customer accounts yet. Add one to invite its users, file tickets for it, or map imports and webhooks to it.</p>}
+      <form className="mt-3 grid gap-2 sm:grid-cols-[1fr_9rem_8rem_auto]" onSubmit={(e) => { e.preventDefault(); add.mutate(); }}>
+        <Input aria-label="Account name" placeholder="Customer company" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <Select aria-label="Plan" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })}>{["starter", "team", "business", "enterprise"].map((pl) => <option key={pl}>{pl}</option>)}</Select>
+        <Input aria-label="Product version" placeholder="2.5" value={f.product_version} onChange={(e) => setF({ ...f, product_version: e.target.value })} />
+        <Button type="submit" busy={add.isPending} disabled={f.name.trim().length < 2 || !f.product_version}>Add account</Button>
+      </form>
+      {add.error ? <Notice tone="danger">{add.error.detail}</Notice> : null}
+    </Card>
   );
 }

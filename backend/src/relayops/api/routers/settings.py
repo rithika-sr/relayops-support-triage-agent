@@ -15,7 +15,8 @@ from relayops.api.serializers import iso
 from relayops.core.config import get_settings
 from relayops.domain import policies
 from relayops.domain.scope import Principal, ValidationFailed
-from relayops.models import ApiToken, CustomerAccount, Invitation, Membership, User
+from relayops.models import ApiToken, Connection, CustomerAccount, Invitation, Membership, User
+from relayops.services import audit as audit_service
 from relayops.services import auth as auth_service
 from relayops.services import calendars as calendar_service
 from relayops.services import retrieval
@@ -72,7 +73,24 @@ def policy(p: Principal = Depends(current_principal)) -> dict[str, Any]:
 
 
 @router.get("/connectors")
-def connectors(p: Principal = Depends(staff_principal)) -> dict[str, Any]:
+def connectors(p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, Any]:
+    s = get_settings()
+    gh = list(
+        db.execute(
+            select(Connection).where(
+                Connection.organization_id == p.organization_id, Connection.kind == "github_issues"
+            )
+        ).scalars()
+    )
+    gh_desc = (
+        "; ".join(f"{c.name}: {c.config.get('target')} {c.config.get('repo')} ({c.status})" for c in gh)
+        if gh
+        else "No GitHub connection configured."
+    ) + (
+        " Live api.github.com writes are enabled on this server for allow-listed repositories."
+        if s.github_live_enabled
+        else " Live api.github.com writes are disabled on this server."
+    )
     return {
         "action_mode": get_settings().action_mode,
         "adapters": [
@@ -84,8 +102,8 @@ def connectors(p: Principal = Depends(staff_principal)) -> dict[str, Any]:
             },
             {
                 "name": "github_issues",
-                "enabled": False,
-                "description": "Not connected. A deterministic simulated adapter exists only for failure-mode tests.",
+                "enabled": any(c.status != "disconnected" for c in gh),
+                "description": gh_desc,
             },
             {"name": "email", "enabled": False, "description": "Not implemented. RelayOps does not send email."},
         ],
@@ -229,3 +247,44 @@ def preview_calendar(body: PreviewBody, p: Principal = Depends(staff_principal),
     if body.start.tzinfo is None:
         raise ValidationFailed("start must include a UTC offset")
     return calendar_service.preview(db, p, start=body.start, hours=body.hours)
+
+
+class AccountBody(BaseModel):
+    name: str = Field(min_length=2, max_length=200)
+    plan: str
+    product_version: str = Field(pattern=r"^\d+\.\d+(\.\d+)?$")
+    region: str = Field(default="us", pattern="^(us|eu|apac)$")
+
+
+@router.post("/accounts", status_code=201)
+def create_account(body: AccountBody, p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, Any]:
+    """Add a customer account. Tickets, invitations, imports, and webhooks all attach to one."""
+    if body.plan not in policies.PLANS:
+        raise ValidationFailed(f"plan must be one of {', '.join(policies.PLANS)}")
+    name = body.name.strip()
+    taken = db.execute(
+        select(CustomerAccount.id).where(
+            CustomerAccount.organization_id == p.organization_id, CustomerAccount.name == name
+        )
+    ).first()
+    if taken:
+        raise ValidationFailed("an account with this name already exists")
+    a = CustomerAccount(
+        organization_id=p.organization_id,
+        name=name,
+        plan=body.plan,
+        product_version=body.product_version,
+        region=body.region,
+    )
+    db.add(a)
+    db.flush()
+    audit_service.record(
+        db,
+        organization_id=p.organization_id,
+        actor=p,
+        action="account.created",
+        target_type="customer_account",
+        target_id=a.id,
+        detail={"plan": a.plan},
+    )
+    return {"id": a.id, "name": a.name, "plan": a.plan, "product_version": a.product_version, "region": a.region}

@@ -171,3 +171,45 @@ def test_analytics_count_only_the_instance_data_class(db):
     ov = s.get("/api/overview").json()
     assert ov["data_classes_included"] == ["test"]
     assert ov["open_tickets"] == 1 and ov["excluded_tickets_by_class"] == {"demo": 1, "unknown": 1}
+
+
+def test_fresh_organization_can_add_an_account_and_take_a_real_ticket(db):
+    from fastapi.testclient import TestClient
+
+    from relayops.api.main import app
+    from tests.factories import HEADERS
+
+    c = TestClient(app)
+    r = c.post(
+        "/api/auth/register",
+        headers=HEADERS,
+        json={
+            "name": "Ada",
+            "email": "ada@new.test",
+            "password": "a-very-long-password",
+            "organization_name": "New Co",
+        },
+    )
+    assert r.status_code in (200, 201), r.text
+    c.headers.update({"x-csrf-token": c.cookies.get("relayops_csrf") or "", "origin": "http://localhost:3020"})
+    assert c.get("/api/overview").json()["open_tickets"] == 0  # starts empty: nothing seeded
+    bad = c.post("/api/settings/accounts", json={"name": "Acme", "plan": "platinum", "product_version": "2.5"})
+    assert bad.status_code == 422
+    acct = c.post("/api/settings/accounts", json={"name": "Acme", "plan": "team", "product_version": "2.5"})
+    assert acct.status_code == 201, acct.text
+    assert (
+        c.post("/api/settings/accounts", json={"name": "Acme", "plan": "team", "product_version": "2.5"}).status_code
+        == 422
+    )
+    t = c.post(
+        "/api/tickets",
+        json={
+            "subject": "Exports fail",
+            "body": "CSV export returns an error.",
+            "customer_account_id": acct.json()["id"],
+        },
+    )
+    assert t.status_code == 201
+    detail = c.get(f"/api/tickets/{t.json()['ticket']['id']}").json()["ticket"]
+    assert detail["data_class"] == "test" and detail["source_kind"] == "manual"  # the instance's class, set by server
+    assert c.get("/api/overview").json()["open_tickets"] == 1
