@@ -84,7 +84,7 @@ DEFAULT_PLAYBOOKS: dict[str, dict[str, Any]] = {
             "allowed_routes": ["link_existing_issue", "new_engineering_handoff", "answer_draft", "clarification"],
             "max_turns": 4,
             "max_tool_calls": 6,
-            "required_facts": ["product_version", "error_code", "first_seen"],
+            "required_facts": ["product_version", "error_code"],
         },
     },
     "feature": {

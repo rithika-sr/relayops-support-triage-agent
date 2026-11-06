@@ -5,13 +5,8 @@ from __future__ import annotations
 from relayops.core.clock import utcnow
 from relayops.core.db import new_session
 from relayops.domain.playbooks import READ_TOOLS
-from relayops.services.seed import seed
 from relayops.tools.registry import TOOLS, TrustedContext, dispatch, tool_specs
-
-
-def seeded(db, tmp_path):
-    seed(db, credentials_path=tmp_path / "creds.json")
-    db.commit()
+from tests.agent_helpers import seeded
 
 
 def _ctx(**kw):
