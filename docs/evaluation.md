@@ -123,7 +123,36 @@ Traced from the recorded run events in the evaluation database, not inferred fro
 
 Gold labels were not edited, no case IDs are referenced in code, and the rules and rag baselines are unchanged.
 
-<!-- RUN2 -->
+### Run 2: agent after the first fixes, at `40320eb` (intermediate)
+
+Rows: [`full-r2-40320eb-rows.jsonl`](../evals/results/full-r2-40320eb-rows.jsonl) (rules and agent, 147 dev+validation
+cases each, from a clean worktree at `40320eb` with its own database). The hybrid pass was stopped unfinished once
+the regressions below were found and fixed, so no hybrid numbers are reported for this revision. Latency for the first
+~25 agent cases is inflated by screenshot runs sharing the machine.
+
+| System | Slice | Route correct | 95% interval | Latency p50 / p95 |
+| --- | --- | --- | --- | --- |
+| rules | main | 122/126 (0.97) | 0.92–0.99 | 0.0 / 0.0 s |
+| rules | hard | 6/21 (0.29) | 0.14–0.50 | 0.0 / 0.0 s |
+| agent | main | 78/126 (0.62) | 0.53–0.70 | 26.7 / 38.7 s |
+| agent | hard | 14/21 (0.67) | 0.45–0.83 | 28.3 / 36.4 s |
+
+Against run 1, the agent improved on new handoffs (main 1 → 13 of 21; hard 0 → 6 of 6), hard how-to (5 → 6), hard
+known issues (0 → 2), and incidents (0 → 4), and **regressed on clarification (12 → 6 of 21)** and how-to (18 → 16).
+Traced causes, both fixed before run 3:
+
+6. **Vague tickets sent to the restricted queue.** When the model picked a route the playbook does not allow, code
+   fell back to specialist review, which restricts the ticket (the security queue). Six vague tickets landed there.
+   The run 1 prompt change also told the model that missing facts alone were no reason to ask. *Fix (`2794ba1`):*
+   a disallowed route falls back to clarification when the playbook allows it; the clarification rule is stated
+   positively.
+7. **Incidents still missed (4/21).** The bug playbook, which error-code tickets get, did not allow `incident_link`,
+   so the policy rule could not apply and the model's choice was downgraded. *Fix (`66c4f75`):* the default bug
+   playbook allows incident links. The same commit provisions default playbooks at registration; before it, a new
+   operational organization had none and could not start an investigation.
+
+<!-- RUN3 -->
+
 
 ## Claim verification calibration
 
