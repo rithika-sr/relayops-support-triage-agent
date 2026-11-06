@@ -37,14 +37,14 @@ def require_admin(p: Principal) -> None:
         raise AccessDenied("admin role required")
 
 
-def tickets(p: Principal) -> Select[tuple[Ticket]]:
+def tickets(p: Principal) -> Select[Ticket]:
     stmt = select(Ticket).where(Ticket.organization_id == p.organization_id)
     if not p.is_staff:
         stmt = stmt.where(Ticket.customer_account_id == p.customer_account_id, Ticket.is_historical.is_(False))
     return stmt
 
 
-def messages(p: Principal, ticket_id: str) -> Select[tuple[TicketMessage]]:
+def messages(p: Principal, ticket_id: str) -> Select[TicketMessage]:
     stmt = select(TicketMessage).where(
         TicketMessage.organization_id == p.organization_id, TicketMessage.ticket_id == ticket_id
     )
@@ -55,14 +55,14 @@ def messages(p: Principal, ticket_id: str) -> Select[tuple[TicketMessage]]:
     return stmt.order_by(TicketMessage.created_at, TicketMessage.id)
 
 
-def accounts(p: Principal) -> Select[tuple[CustomerAccount]]:
+def accounts(p: Principal) -> Select[CustomerAccount]:
     stmt = select(CustomerAccount).where(CustomerAccount.organization_id == p.organization_id)
     if not p.is_staff:
         stmt = stmt.where(CustomerAccount.id == p.customer_account_id)
     return stmt
 
 
-def documents(p: Principal) -> Select[tuple[KnowledgeDocument]]:
+def documents(p: Principal) -> Select[KnowledgeDocument]:
     stmt = select(KnowledgeDocument).where(KnowledgeDocument.organization_id == p.organization_id)
     if not p.is_staff:
         stmt = stmt.where(
@@ -76,34 +76,34 @@ def documents(p: Principal) -> Select[tuple[KnowledgeDocument]]:
     return stmt
 
 
-def issues(p: Principal) -> Select[tuple[EngineeringIssue]]:
+def issues(p: Principal) -> Select[EngineeringIssue]:
     stmt = select(EngineeringIssue).where(EngineeringIssue.organization_id == p.organization_id)
     return stmt if p.is_staff else stmt.where(false())
 
 
-def incidents(p: Principal) -> Select[tuple[Incident]]:
+def incidents(p: Principal) -> Select[Incident]:
     stmt = select(Incident).where(Incident.organization_id == p.organization_id)
     if not p.is_staff:
         stmt = stmt.where(Incident.public_visible.is_(True))
     return stmt
 
 
-def runs(p: Principal) -> Select[tuple[InvestigationRun]]:
+def runs(p: Principal) -> Select[InvestigationRun]:
     stmt = select(InvestigationRun).where(InvestigationRun.organization_id == p.organization_id)
     return stmt if p.is_staff else stmt.where(false())
 
 
-def proposals(p: Principal) -> Select[tuple[Proposal]]:
+def proposals(p: Principal) -> Select[Proposal]:
     stmt = select(Proposal).where(Proposal.organization_id == p.organization_id)
     return stmt if p.is_staff else stmt.where(false())
 
 
-def artifacts(p: Principal) -> Select[tuple[Artifact]]:
+def artifacts(p: Principal) -> Select[Artifact]:
     stmt = select(Artifact).where(Artifact.organization_id == p.organization_id)
     return stmt if p.is_staff else stmt.where(false())
 
 
-def one[T](db: Session, stmt: Select[tuple[T]], what: str) -> T:
+def one[T](db: Session, stmt: Select[T], what: str) -> T:
     """Fetch exactly one scoped row. Out-of-scope rows are indistinguishable from missing ones."""
     row = db.execute(stmt.limit(1)).scalar_one_or_none()
     if row is None:

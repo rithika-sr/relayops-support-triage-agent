@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from relayops.core.clock import utcnow
@@ -226,7 +226,7 @@ def list_tickets(
         stmt = stmt.where(Ticket.is_historical.is_(False))
     if q:
         like = f"%{q.strip()[:100]}%"
-        conds = [Ticket.subject.ilike(like), Ticket.error_code.ilike(like)]
+        conds: list[ColumnElement[bool]] = [Ticket.subject.ilike(like), Ticket.error_code.ilike(like)]
         if q.strip().lstrip("#").isdigit():
             conds.append(Ticket.number == int(q.strip().lstrip("#")))
         stmt = stmt.where(or_(*conds))

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 
 from relayops.domain.incidents import normalize_signature
@@ -15,7 +15,7 @@ from relayops.repositories import scoped
 
 
 def issue_dict(i: EngineeringIssue, *, linked: int | None = None) -> dict[str, Any]:
-    out = {
+    out: dict[str, Any] = {
         "id": i.id,
         "key": i.key,
         "title": i.title,
@@ -49,7 +49,7 @@ def search_issues(
     """Organization-scoped issue search with explicit signature/version match annotations."""
     stmt = select(EngineeringIssue).where(EngineeringIssue.organization_id == organization_id)
     words = [w for w in re.findall(r"[a-z0-9_]+", query.lower()) if len(w) > 2][:8]
-    conds = [EngineeringIssue.title.ilike(f"%{w}%") for w in words]
+    conds: list[ColumnElement[bool]] = [EngineeringIssue.title.ilike(f"%{w}%") for w in words]
     sig = normalize_signature(error_signature)
     if sig:
         conds.append(EngineeringIssue.error_signature == sig)

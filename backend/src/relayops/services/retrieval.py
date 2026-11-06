@@ -72,7 +72,9 @@ def _tokens(query: str) -> list[str]:
     return list(dict.fromkeys(toks))[:24]
 
 
-def _authorized_chunks(scope: RetrievalScope, *, as_of: datetime, kinds: tuple[str, ...] | None) -> Select[Any]:
+def _authorized_chunks(
+    scope: RetrievalScope, *, as_of: datetime, kinds: tuple[str, ...] | None
+) -> Select[KnowledgeChunk, KnowledgeDocument, DocumentVersion]:
     conds = [
         KnowledgeChunk.organization_id == scope.organization_id,
         KnowledgeDocument.status == "current",

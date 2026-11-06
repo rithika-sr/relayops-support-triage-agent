@@ -283,21 +283,21 @@ def seed(db: Session, provider: Provider | None = None, credentials_path: Path |
                 db.add(ComponentOwner(organization_id=org.id, **own))
         issues: dict[str, EngineeringIssue] = {}
         for i in o["issues"]:
-            row = db.execute(
+            issue = db.execute(
                 select(EngineeringIssue).where(
                     EngineeringIssue.organization_id == org.id, EngineeringIssue.key == i["key"]
                 )
             ).scalar_one_or_none()
-            if row is None:
-                row = EngineeringIssue(
+            if issue is None:
+                issue = EngineeringIssue(
                     organization_id=org.id,
                     owner_team=next((x["team"] for x in o["owners"] if x["component"] == i["component"]), "unassigned"),
                     created_at=anchor - timedelta(days=30),
                     updated_at=anchor - timedelta(days=2),
                     **i,
                 )
-                db.add(row)
-            issues[i["key"]] = row
+                db.add(issue)
+            issues[i["key"]] = issue
         for n, d in enumerate(o["deployments"]):
             _upsert(
                 db,

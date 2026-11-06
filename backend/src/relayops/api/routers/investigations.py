@@ -250,7 +250,7 @@ async def stream(
     """SSE with sequence-based resume. Authorization is checked at connect and on every poll."""
     with new_session() as db:
         scoped.get_run(db, p, run_id)
-    cursor = int(last_event_id or request.query_params.get("after", 0) or 0)
+    cursor = int(last_event_id or request.query_params.get("after") or 0)
 
     async def gen() -> AsyncIterator[str]:
         nonlocal cursor

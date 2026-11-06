@@ -12,6 +12,7 @@ non-idempotent effect (the proposal insert is keyed by run and version).
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, TypedDict
 
@@ -57,8 +58,9 @@ class RunState(TypedDict, total=False):
     outcome: dict[str, Any]
 
 
-def _usage(state: RunState) -> dict[str, Any]:
-    return {k: state.get(k, 0) for k in ("turns", "tool_calls", "model_calls", "repairs")}
+def _usage(state: Mapping[str, Any], delta: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    merged = {**state, **(delta or {})}
+    return {k: merged.get(k, 0) for k in ("turns", "tool_calls", "model_calls", "repairs")}
 
 
 OUTPUT_TOKENS = {"extract": 300, "investigate": 300, "propose": 1100, "draft_reply": 600}
@@ -142,7 +144,7 @@ def load_context(state: RunState) -> dict[str, Any]:
         run.status = "running"
         as_of = run.budgets.get("as_of") or run.created_at.isoformat()
         cfg = run.budgets["playbook"]
-        context = {
+        context: dict[str, Any] = {
             "ticket": {
                 "id": ticket.id,
                 "number": ticket.number,
@@ -256,7 +258,7 @@ def extract(state: RunState) -> dict[str, Any]:
         "extract",
         {"summary": ex.get("summary"), "extraction": ex},
         current_node="investigate",
-        usage=_usage({**state, **delta}),
+        usage=_usage(state, delta),
     )  # type: ignore[typeddict-item]
     return {"extraction": ex, "stop_reason": stop, **delta}
 
@@ -351,6 +353,7 @@ def investigate(state: RunState) -> dict[str, Any]:
                     "investigate",
                     {"tool": call.tool, "args": call.args, "turn": turns, "call_number": tool_calls},
                 )
+                obs_d: dict[str, Any]
                 if sig in previous:
                     obs_d = {
                         "tool": call.tool,
@@ -403,7 +406,7 @@ def investigate(state: RunState) -> dict[str, Any]:
         "node_completed",
         "investigate",
         {"turn": turns, "stop_reason": stop, "evidence_count": len(evidence)},
-        usage=_usage({**state, **new_state}),
+        usage=_usage(state, new_state),
     )  # type: ignore[typeddict-item]
     return new_state
 
@@ -444,7 +447,7 @@ def propose(state: RunState) -> dict[str, Any]:
                 "propose",
                 "Choose route and handoff",
                 prompts.PROPOSE_SYSTEM,
-                prompts.propose_user(ctx, state),
+                prompts.propose_user(ctx, dict(state)),
                 prompts.PROPOSE_SCHEMA,
                 RouteProposal,
             )
@@ -561,7 +564,7 @@ def propose(state: RunState) -> dict[str, Any]:
         "propose",
         {"route": route.value, "action_kind": action_kind.value, "rationale": rp.rationale, "overrides": overrides},
         current_node="draft_reply",
-        usage=_usage({**state, **delta}),
+        usage=_usage(state, delta),
     )  # type: ignore[typeddict-item]
     return {"route_proposal": proposal, **delta}
 
@@ -653,7 +656,7 @@ def draft_reply(state: RunState) -> dict[str, Any]:
         "draft_reply",
         {"source": reply["source"], "chars": len(reply["text"]), "evidence_ids": reply["evidence_ids"]},
         current_node="verify",
-        usage=_usage({**state, **delta}),
+        usage=_usage(state, delta),
     )  # type: ignore[typeddict-item]
     return {**delta, "reply": reply, "evidence": evidence}
 

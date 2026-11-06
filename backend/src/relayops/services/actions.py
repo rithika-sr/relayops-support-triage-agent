@@ -142,34 +142,36 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
         )
         receipt |= {"engineering_issue_id": issue.id, "engineering_issue_key": issue.key, "owner": issue.owner_team}
     elif prop.action_kind == ActionKind.LINK_ENGINEERING_ISSUE:
-        issue = db.get(EngineeringIssue, prop.payload["issue_id"])
-        assert issue is not None and issue.organization_id == prop.organization_id
+        linked_issue = db.get(EngineeringIssue, prop.payload["issue_id"])
+        assert linked_issue is not None and linked_issue.organization_id == prop.organization_id
         link = db.execute(
-            select(TicketIssueLink).where(TicketIssueLink.ticket_id == ticket.id, TicketIssueLink.issue_id == issue.id)
+            select(TicketIssueLink).where(
+                TicketIssueLink.ticket_id == ticket.id, TicketIssueLink.issue_id == linked_issue.id
+            )
         ).scalar_one_or_none()
         if link is None:
             db.add(
                 TicketIssueLink(
                     organization_id=prop.organization_id,
                     ticket_id=ticket.id,
-                    issue_id=issue.id,
+                    issue_id=linked_issue.id,
                     link_kind=prop.payload.get("link_kind", "known_issue"),
                     action_id=record.id,
                 )
             )
         receipt |= {
-            "engineering_issue_id": issue.id,
-            "engineering_issue_key": issue.key,
+            "engineering_issue_id": linked_issue.id,
+            "engineering_issue_key": linked_issue.key,
             "already_linked": link is not None,
         }
     elif prop.action_kind == ActionKind.LINK_INCIDENT:
         inc_id = prop.payload["incident_id"]
-        link = db.execute(
+        inc_link = db.execute(
             select(IncidentTicketLink).where(
                 IncidentTicketLink.incident_id == inc_id, IncidentTicketLink.ticket_id == ticket.id
             )
         ).scalar_one_or_none()
-        if link is None:
+        if inc_link is None:
             db.add(
                 IncidentTicketLink(
                     organization_id=prop.organization_id,
@@ -178,7 +180,7 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
                     linked_by_user_id=review.reviewer_user_id,
                 )
             )
-        receipt |= {"incident_id": inc_id, "already_linked": link is not None}
+        receipt |= {"incident_id": inc_id, "already_linked": inc_link is not None}
     elif prop.action_kind == ActionKind.ESCALATE_SPECIALIST:
         ticket.restricted = True
         db.add(
