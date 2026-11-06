@@ -1,11 +1,11 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge, Button, Disclosure, Field, Notice, StatusBadge, Textarea, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, label } from "@/lib/format";
-import type { Check, Proposal } from "@/lib/types";
+import type { Check, Claim, Proposal } from "@/lib/types";
 
 const GROUPS: { id: string; title: string; checks: string[] }[] = [
   { id: "provenance", title: "Provenance checked", checks: ["required_fields", "provenance", "reply_visibility", "source_currency"] },
@@ -107,6 +107,11 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
     : stale ? `This draft is out of date (${proposal.stale_reasons.join(", ")}).` : failed ? "Fix the failed checks before approving."
     : needsAck && !ack ? "Confirm you checked the uncertain claims." : null;
   const verifier = proposal.verification.claim_verifier;
+  const labels = useQuery({
+    queryKey: ["claim-labels", proposal.id],
+    queryFn: () => api.get<LabelRow[]>(`/proposals/${proposal.id}/annotations`),
+    enabled: canReview,
+  });
   const primaryLabel = proposal.action_kind === "create_engineering_handoff" ? "Approve reply and create handoff" : "Approve and publish reply";
   const human = proposal.reviews.find((r) => r.decision === "approve");
 
@@ -185,6 +190,9 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
                             {METHOD_TEXT[c.method]}{c.evidence_ids.length ? ` · ${c.evidence_ids.join(", ")}` : ""}{c.detail ? ` · ${c.detail}` : ""}
                           </span>
                         ) : null}
+                        {canReview && (c.kind === "factual" || c.kind === "procedural" || c.kind === "hypothesis") ? (
+                          <ClaimLabel proposalId={proposal.id} index={i} claim={c} human={labels.data?.find((l) => l.claim_index === i)} />
+                        ) : null}
                       </span>
                     </li>
                   ))}
@@ -253,5 +261,30 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
         </div>
       ) : null}
     </div>
+  );
+}
+
+interface LabelRow { claim_index: number; consensus: string; labels: { annotator: string; verdict: string }[] }
+
+function ClaimLabel({ proposalId, index, claim, human }: { proposalId: string; index: number; claim: Claim; human?: LabelRow }) {
+  const qc = useQueryClient();
+  const save = useMutation<unknown, ApiError, string>({
+    mutationFn: (verdict) => api.post(`/proposals/${proposalId}/claims/${index}/annotations`, { verdict, claim_sha256: claim.sha256 }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["claim-labels", proposalId] }); qc.invalidateQueries({ queryKey: ["label-stats"] }); },
+  });
+  const id = `claim-label-${proposalId}-${index}`;
+  return (
+    <span className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+      <label htmlFor={id} className="text-muted">Your label</label>
+      <select id={id} className="rounded border border-line bg-card px-1.5 py-0.5" value="" disabled={save.isPending || !claim.sha256}
+        onChange={(e) => e.target.value && save.mutate(e.target.value)}>
+        <option value="">{human ? "Change…" : "Choose…"}</option>
+        <option value="supported">Supported by sources</option>
+        <option value="contradicted">Contradicted by sources</option>
+        <option value="insufficient_evidence">Not in sources</option>
+      </select>
+      {human ? <span className="text-muted">Human: {human.consensus === "disagreement" ? "annotators disagree" : label(human.consensus)} ({human.labels.length})</span> : null}
+      {save.error ? <span className="text-danger-700">{save.error.detail}</span> : null}
+    </span>
   );
 }

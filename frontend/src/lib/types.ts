@@ -313,6 +313,17 @@ export interface Overview {
   open_by_component: Record<string, number>;
   created_per_day: { day: string; count: number }[];
   runs_by_status: Record<string, number>;
+  data_classes_included: string[];
+  excluded_tickets_by_class: Record<string, number>;
+}
+
+export interface LabelStats {
+  status: "pending" | "measured";
+  annotated_claims: number;
+  annotator_disagreements?: number;
+  stale_labels?: number;
+  by_method?: Record<string, { agree: number; disagree: number }>;
+  note: string;
 }
 
 export interface Claim {
@@ -323,4 +334,5 @@ export interface Claim {
   evidence_ids: string[];
   detail: string;
   label: string;
+  sha256?: string;
 }

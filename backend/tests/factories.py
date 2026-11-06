@@ -27,8 +27,8 @@ def build_world(db: Session) -> World:
     w = World()
     db.add_all(
         [
-            Organization(id=w.org_a, name="Org A", slug="org-a"),
-            Organization(id=w.org_b, name="Org B", slug="org-b"),
+            Organization(id=w.org_a, name="Org A", slug="org-a", data_class="test"),
+            Organization(id=w.org_b, name="Org B", slug="org-b", data_class="test"),
         ]
     )
     db.flush()

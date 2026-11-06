@@ -6,9 +6,9 @@ import type { GraphNode } from "@/lib/types";
 
 const STATE_STYLE: Record<GraphNode["state"], { bg: string; border: string; color: string; label: string }> = {
   pending: { bg: "#fffdf9", border: "#d4c9b7", color: "#5a6371", label: "pending" },
-  active: { bg: "#ecf7f5", border: "#0f7f76", color: "#0e6b64", label: "running" },
+  active: { bg: "#ecf7f5", border: "var(--color-accent-600)", color: "#0e6b64", label: "running" },
   completed: { bg: "#e9f6ec", border: "#23703a", color: "#23703a", label: "done" },
-  waiting: { bg: "#fdf6e7", border: "#9a5a07", color: "#9a5a07", label: "awaiting review" },
+  waiting: { bg: "#fdf6e7", border: "var(--color-info-700)", color: "var(--color-info-700)", label: "awaiting review" },
   failed: { bg: "#fdeeec", border: "#a3261b", color: "#a3261b", label: "failed" },
   cancelled: { bg: "#f1efe9", border: "#a9b6c9", color: "#5a6371", label: "cancelled" },
 };

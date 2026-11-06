@@ -10,6 +10,7 @@ from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from relayops.core.clock import utcnow
+from relayops.core.config import get_settings
 from relayops.domain.policies import COMPONENTS, PRIORITIES, decide_target, entitlements_for, target_state
 from relayops.domain.scope import AccessDenied, Principal, ValidationFailed
 from relayops.models import (
@@ -458,11 +459,27 @@ def ticket_target(ticket: Ticket) -> dict[str, Any]:
     }
 
 
+def analytics_classes() -> tuple[str, ...]:
+    """Data classes analytics may count. An operational instance counts only operational records; a demo or
+    test instance counts only its own class, under its banner. Unknown is never counted."""
+    mode = get_settings().data_mode
+    return ("operational",) if mode == "operational" else (mode,)
+
+
 def overview(db: Session, p: Principal) -> dict[str, Any]:
     scoped.require_staff(p)
     org = p.organization_id
     now = utcnow()
-    live = and_(Ticket.organization_id == org, Ticket.is_historical.is_(False))
+    classes = analytics_classes()
+    base = and_(Ticket.organization_id == org, Ticket.is_historical.is_(False))
+    live = and_(base, Ticket.data_class.in_(classes))
+    excluded = dict(
+        db.execute(
+            select(Ticket.data_class, func.count(Ticket.id))
+            .where(base, Ticket.data_class.not_in(classes))
+            .group_by(Ticket.data_class)
+        ).all()  # type: ignore[arg-type]
+    )
 
     def count(*conds: Any) -> int:
         return int(db.execute(select(func.count(Ticket.id)).where(live, *conds)).scalar_one())
@@ -485,18 +502,24 @@ def overview(db: Session, p: Principal) -> dict[str, Any]:
     ).all()
     pending_review = int(
         db.execute(
-            select(func.count(Proposal.id)).where(Proposal.organization_id == org, Proposal.status == "pending_review")
+            select(func.count(Proposal.id)).where(
+                Proposal.organization_id == org,
+                Proposal.status == "pending_review",
+                Proposal.data_class.in_(classes),
+            )
         ).scalar_one()
     )
     runs_by_status = dict(
         db.execute(
             select(InvestigationRun.status, func.count(InvestigationRun.id))
-            .where(InvestigationRun.organization_id == org)
+            .where(InvestigationRun.organization_id == org, InvestigationRun.data_class.in_(classes))
             .group_by(InvestigationRun.status)
         ).all()  # type: ignore[arg-type]
     )
     return {
         "as_of": now.isoformat(),
+        "data_classes_included": list(classes),
+        "excluded_tickets_by_class": excluded,
         "open_tickets": count(Ticket.status.in_(("open", "pending_review"))),
         "breached_targets": count(
             Ticket.first_responded_at.is_(None),

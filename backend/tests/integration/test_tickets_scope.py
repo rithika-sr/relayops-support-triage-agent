@@ -148,3 +148,26 @@ def test_new_registered_org_sees_no_existing_tenant_data(db):
     )
     assert c.get("/api/accounts").json() == []
     assert c.get("/api/tickets").json()["total"] == 0
+
+
+def test_analytics_count_only_the_instance_data_class(db):
+    from sqlalchemy import update
+
+    from relayops.core.db import new_session
+    from relayops.models import Ticket
+
+    w = build_world(db)
+    s = client_for("support@a.test")
+    for i in range(3):
+        r = s.post(
+            "/api/tickets", json={"subject": f"Ticket {i}", "body": "body text", "customer_account_id": w.acct_a1}
+        )
+        assert r.status_code == 201, r.text
+    with new_session() as ses:
+        ids = [t.id for t in ses.query(Ticket).filter(Ticket.organization_id == w.org_a).order_by(Ticket.id)]
+        ses.execute(update(Ticket).where(Ticket.id == ids[0]).values(data_class="demo"))
+        ses.execute(update(Ticket).where(Ticket.id == ids[1]).values(data_class="unknown"))
+        ses.commit()
+    ov = s.get("/api/overview").json()
+    assert ov["data_classes_included"] == ["test"]
+    assert ov["open_tickets"] == 1 and ov["excluded_tickets_by_class"] == {"demo": 1, "unknown": 1}

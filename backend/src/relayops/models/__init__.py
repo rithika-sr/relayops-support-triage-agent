@@ -1,3 +1,4 @@
+from relayops.models.annotations import ANNOTATION_VERDICTS, ClaimAnnotation
 from relayops.models.base import Base, new_id
 from relayops.models.identity import (
     ApiToken,
@@ -32,6 +33,8 @@ from relayops.models.runs import ActionRecord, InvestigationRun, Job, OutboxMess
 from relayops.models.tickets import SavedView, Ticket, TicketMessage
 
 __all__ = [
+    "ANNOTATION_VERDICTS",
+    "ClaimAnnotation",
     "SavedView",
     "DATA_CLASSES",
     "SOURCE_KINDS",

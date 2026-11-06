@@ -37,7 +37,7 @@ function Detail({ id }: { id: string }) {
           <>
             <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-sm"><thead className="text-left text-xs text-muted uppercase"><tr><th className="py-1">System</th><th>Cases run</th><th>Failed / errors</th><th>Route accuracy</th><th>Evidence recall@k</th><th>Provenance validity</th><th>Latency p50 / p95</th></tr></thead>
               <tbody>{systems.map((s) => <tr key={s.system} className="border-t border-line"><td className="py-1 font-medium">{s.system}</td><td>{s.cases_run}</td><td>{s.cases_failed}</td><td>{pct(s.route_accuracy)}</td><td>{pct(s.evidence_recall_at_k)}</td><td>{pct(s.provenance_validity)}</td><td>{s.latency_ms?.p50 ?? "—"} / {s.latency_ms?.p95 ?? "—"} ms</td></tr>)}</tbody></table></div>
-            <div className="mt-3 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={chart}><CartesianGrid vertical={false} stroke="#e5ddd0" /><XAxis dataKey="system" tick={{ fontSize: 12 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="route" name="route accuracy" fill="#0f7f76" /><Bar dataKey="recall" name="evidence recall@k" fill="#9a5a07" /></BarChart></ResponsiveContainer></div>
+            <div className="mt-3 h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={chart}><CartesianGrid vertical={false} stroke="var(--color-line)" /><XAxis dataKey="system" tick={{ fontSize: 12 }} /><YAxis domain={[0, 1]} tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="route" name="route accuracy" fill="var(--color-accent-600)" /><Bar dataKey="recall" name="evidence recall@k" fill="var(--color-info-700)" /></BarChart></ResponsiveContainer></div>
           </>
         )}
       </Card>

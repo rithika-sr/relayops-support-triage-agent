@@ -18,6 +18,7 @@ from relayops.domain.playbooks import GRAPH_NODES
 from relayops.domain.scope import Principal
 from relayops.models import ActionRecord, InvestigationRun, Proposal, Review, RunEvent, Ticket, User
 from relayops.repositories import scoped
+from relayops.services import claim_labels
 from relayops.services import review as review_service
 from relayops.services import runs as run_service
 
@@ -97,7 +98,10 @@ def proposal_dict(db: Session, p: Proposal) -> dict[str, Any]:
         "evidence_hash": p.evidence_hash,
         "policy_version": p.policy_version,
         "ticket_revision": p.ticket_revision,
-        "verification": p.verification,
+        "verification": {
+            **p.verification,
+            "claims": [{**c, "sha256": claim_labels.claim_sha(c["text"])} for c in p.verification.get("claims") or []],
+        },
         "verification_status": p.verification_status,
         "status": p.status,
         "authored_by": p.authored_by,

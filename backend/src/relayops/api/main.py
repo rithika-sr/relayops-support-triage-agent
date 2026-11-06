@@ -10,7 +10,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from relayops.agents.llm import ModelUnavailable
-from relayops.api.routers import auth, integrations, investigations, knowledge, operations, settings, tickets
+from relayops.api.routers import (
+    auth,
+    claim_labels,
+    integrations,
+    investigations,
+    knowledge,
+    operations,
+    settings,
+    tickets,
+)
 from relayops.core.config import get_settings
 from relayops.core.db import get_engine, session_scope
 from relayops.core.instance import require_mode
@@ -81,6 +90,7 @@ def create_app() -> FastAPI:
         investigations.router,
         operations.router,
         integrations.router,
+        claim_labels.router,
         settings.router,
     ):
         app.include_router(r, prefix="/api")
