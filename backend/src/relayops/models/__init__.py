@@ -29,9 +29,10 @@ from relayops.models.provenance import (
 )
 from relayops.models.records import Artifact, ArtifactVersion, AuditEvent, EvalReport, Playbook, PlaybookRevision
 from relayops.models.runs import ActionRecord, InvestigationRun, Job, OutboxMessage, Proposal, Review, RunEvent
-from relayops.models.tickets import Ticket, TicketMessage
+from relayops.models.tickets import SavedView, Ticket, TicketMessage
 
 __all__ = [
+    "SavedView",
     "DATA_CLASSES",
     "SOURCE_KINDS",
     "Connection",

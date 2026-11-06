@@ -6,13 +6,21 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, and_, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from relayops.core.clock import utcnow
 from relayops.domain.policies import COMPONENTS, PRIORITIES, decide_target, entitlements_for, target_state
 from relayops.domain.scope import AccessDenied, Principal, ValidationFailed
-from relayops.models import CustomerAccount, InvestigationRun, Organization, Proposal, Ticket, TicketMessage
+from relayops.models import (
+    CustomerAccount,
+    InvestigationRun,
+    Membership,
+    Organization,
+    Proposal,
+    Ticket,
+    TicketMessage,
+)
 from relayops.repositories import scoped
 from relayops.services import audit
 
@@ -242,10 +250,18 @@ def list_tickets(
     priority: str | None = None,
     account_id: str | None = None,
     component: str | None = None,
+    assignee: str | None = None,
+    queue: str | None = None,
+    sort: str = "newest",
     include_historical: bool = False,
     page: int = 1,
     page_size: int = 25,
 ) -> tuple[list[Ticket], int]:
+    """Scoped, filtered, sorted, paginated ticket list.
+
+    assignee: a user ID, "me" (the caller), or "none". queue: "open", "due_soon", "breached", "review".
+    sort: newest | oldest | due | updated | priority.
+    """
     stmt = scoped.tickets(p)
     if not include_historical:
         stmt = stmt.where(Ticket.is_historical.is_(False))
@@ -263,12 +279,160 @@ def list_tickets(
         stmt = stmt.where(Ticket.customer_account_id == account_id)
     if component:
         stmt = stmt.where(Ticket.component == component)
+    if assignee and p.is_staff:
+        if assignee == "me":
+            stmt = stmt.where(Ticket.assignee_user_id == p.user_id)
+        elif assignee == "none":
+            stmt = stmt.where(Ticket.assignee_user_id.is_(None))
+        else:
+            stmt = stmt.where(Ticket.assignee_user_id == assignee)
+    now = utcnow()
+    active = Ticket.status.in_(("open", "pending_review"))
+    if queue == "open":
+        stmt = stmt.where(active)
+    elif queue == "due_soon":
+        stmt = stmt.where(
+            active,
+            Ticket.first_responded_at.is_(None),
+            Ticket.first_response_due_at >= now,
+            Ticket.first_response_due_at < now + timedelta(hours=4),
+        )
+    elif queue == "breached":
+        stmt = stmt.where(active, Ticket.first_responded_at.is_(None), Ticket.first_response_due_at < now)
+    elif queue == "review":
+        stmt = stmt.where(
+            Ticket.id.in_(
+                select(Proposal.ticket_id).where(
+                    Proposal.organization_id == p.organization_id, Proposal.status == "pending_review"
+                )
+            )
+        )
+    elif queue:
+        raise ValidationFailed("unknown queue")
     total = db.execute(select(func.count()).select_from(stmt.subquery())).scalar_one()
     page_size = max(1, min(page_size, 100))
+    priority_rank = case({"urgent": 0, "high": 1, "normal": 2, "low": 3}, value=Ticket.priority, else_=4)
+    orders: dict[str, list[Any]] = {
+        "newest": [Ticket.created_at.desc()],
+        "oldest": [Ticket.created_at.asc()],
+        "due": [Ticket.first_response_due_at.asc().nulls_last()],
+        "updated": [Ticket.updated_at.desc()],
+        "priority": [priority_rank, Ticket.first_response_due_at.asc().nulls_last()],
+    }
+    if sort not in orders:
+        raise ValidationFailed("unknown sort")
     rows = db.execute(
-        stmt.order_by(Ticket.created_at.desc(), Ticket.id).limit(page_size).offset((max(page, 1) - 1) * page_size)
+        stmt.order_by(*orders[sort], Ticket.id).limit(page_size).offset((max(page, 1) - 1) * page_size)
     ).scalars()
     return list(rows), int(total)
+
+
+BULK_FIELDS = {"status", "priority", "assignee_user_id"}
+
+
+def assign(db: Session, p: Principal, ticket_id: str, assignee_user_id: str | None) -> Ticket:
+    scoped.require_staff(p)
+    ticket = scoped.get_ticket(db, p, ticket_id, for_update=True)
+    if assignee_user_id is not None:
+        member = db.execute(
+            select(Membership).where(
+                Membership.user_id == assignee_user_id,
+                Membership.organization_id == p.organization_id,
+                Membership.role.in_(("admin", "support")),
+            )
+        ).scalar_one_or_none()
+        if member is None:
+            raise ValidationFailed("assignee must be a staff member of this organization")
+    before = ticket.assignee_user_id
+    ticket.assignee_user_id = assignee_user_id
+    ticket.updated_at = utcnow()
+    audit.record(
+        db,
+        organization_id=p.organization_id,
+        actor=p,
+        action="ticket.assigned",
+        target_type="ticket",
+        target_id=ticket.id,
+        detail={"before": before, "after": assignee_user_id},
+    )
+    return ticket
+
+
+def bulk_update(db: Session, p: Principal, ticket_ids: list[str], changes: dict[str, Any]) -> dict[str, Any]:
+    """Apply the same status/priority/assignee change ticket by ticket, each with its own scope check and audit.
+
+    Customer replies are deliberately not a bulk operation; they always go through review.
+    """
+    scoped.require_staff(p)
+    if not ticket_ids or len(ticket_ids) > 100:
+        raise ValidationFailed("select between 1 and 100 tickets")
+    if not changes or set(changes) - BULK_FIELDS:
+        raise ValidationFailed(f"bulk changes are limited to {', '.join(sorted(BULK_FIELDS))}")
+    results: dict[str, str] = {}
+    for tid in dict.fromkeys(ticket_ids):
+        try:
+            with db.begin_nested():
+                if "assignee_user_id" in changes:
+                    assign(db, p, tid, changes["assignee_user_id"])
+                rest = {k: v for k, v in changes.items() if k != "assignee_user_id"}
+                if rest:
+                    update_ticket(db, p, tid, rest)
+            results[tid] = "updated"
+        except (scoped.NotFound, ValidationFailed) as exc:
+            results[tid] = f"skipped: {exc}"
+    return {"results": results, "updated": sum(1 for v in results.values() if v == "updated")}
+
+
+def home(db: Session, p: Principal) -> dict[str, Any]:
+    """What needs attention now, with counts that link to the filtered inbox."""
+    scoped.require_staff(p)
+
+    def n(queue: str | None = None, **kw: Any) -> int:
+        return list_tickets(db, p, queue=queue, page_size=1, **kw)[1]
+
+    failed_runs = db.execute(
+        select(func.count(InvestigationRun.id)).where(
+            InvestigationRun.organization_id == p.organization_id,
+            InvestigationRun.status == "failed",
+            InvestigationRun.mode == "live",
+        )
+    ).scalar_one()
+    return {
+        "as_of": utcnow().isoformat(),
+        "queues": [
+            {
+                "key": "review",
+                "label": "Drafts awaiting review",
+                "count": n("review"),
+                "href": "/app/inbox?queue=review",
+            },
+            {
+                "key": "breached",
+                "label": "First response overdue",
+                "count": n("breached"),
+                "href": "/app/inbox?queue=breached&sort=due",
+            },
+            {
+                "key": "due_soon",
+                "label": "Due within 4 hours",
+                "count": n("due_soon"),
+                "href": "/app/inbox?queue=due_soon&sort=due",
+            },
+            {
+                "key": "mine",
+                "label": "Assigned to me",
+                "count": n("open", assignee="me"),
+                "href": "/app/inbox?queue=open&assignee=me",
+            },
+            {
+                "key": "unassigned",
+                "label": "Open and unassigned",
+                "count": n("open", assignee="none"),
+                "href": "/app/inbox?queue=open&assignee=none",
+            },
+        ],
+        "failed_runs": int(failed_runs),
+    }
 
 
 def account_context(db: Session, p: Principal, ticket: Ticket) -> dict[str, Any]:

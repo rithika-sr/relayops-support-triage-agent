@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from relayops.api import serializers as ser
 from relayops.api.deps import DB, current_principal, staff_principal
-from relayops.domain.scope import Principal
+from relayops.domain.scope import NotFound, Principal, ValidationFailed
 from relayops.models import (
     ActionRecord,
     CustomerAccount,
@@ -20,8 +20,11 @@ from relayops.models import (
     Incident,
     IncidentTicketLink,
     InvestigationRun,
+    Membership,
     Proposal,
+    SavedView,
     TicketIssueLink,
+    TicketMessage,
     User,
 )
 from relayops.repositories import scoped
@@ -60,6 +63,31 @@ def _accounts(db: Session, ids: set[str]) -> dict[str, CustomerAccount]:
     return {a.id: a for a in db.execute(select(CustomerAccount).where(CustomerAccount.id.in_(ids))).scalars()}
 
 
+def _previews(db: Session, p: Principal, ids: list[str]) -> dict[str, str]:
+    """Latest customer-visible message per ticket, trimmed, for list previews."""
+    if not ids:
+        return {}
+    out: dict[str, str] = {}
+    rows = db.execute(
+        select(TicketMessage.ticket_id, TicketMessage.body)
+        .where(
+            TicketMessage.ticket_id.in_(ids),
+            TicketMessage.organization_id == p.organization_id,
+            TicketMessage.visibility == "customer",
+        )
+        .order_by(TicketMessage.created_at.desc())
+    ).all()
+    for tid, body in rows:
+        out.setdefault(tid, body[:180])
+    return out
+
+
+def _user_names(db: Session, ids: set[str]) -> dict[str, str]:
+    if not ids:
+        return {}
+    return {u.id: u.name for u in db.execute(select(User).where(User.id.in_(ids))).scalars()}
+
+
 @router.get("/tickets")
 def list_tickets(
     q: str | None = None,
@@ -67,6 +95,9 @@ def list_tickets(
     priority: str | None = None,
     account_id: str | None = None,
     component: str | None = None,
+    assignee: str | None = None,
+    queue: str | None = None,
+    sort: str = "newest",
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
     p: Principal = Depends(current_principal),
@@ -80,12 +111,32 @@ def list_tickets(
         priority=priority,
         account_id=account_id,
         component=component,
+        assignee=assignee,
+        queue=queue,
+        sort=sort,
         page=page,
         page_size=page_size,
     )
     accts = _accounts(db, {t.customer_account_id for t in rows})
+    previews = _previews(db, p, [t.id for t in rows])
+    names = _user_names(db, {t.assignee_user_id for t in rows if t.assignee_user_id})
     return {
-        "items": [ser.ticket(t, p, accts.get(t.customer_account_id)) for t in rows],
+        "items": [
+            {
+                **ser.ticket(t, p, accts.get(t.customer_account_id)),
+                "preview": previews.get(t.id),
+                **(
+                    {
+                        "assignee": {"id": t.assignee_user_id, "name": names.get(t.assignee_user_id or "")}
+                        if t.assignee_user_id
+                        else None
+                    }
+                    if p.is_staff
+                    else {}
+                ),
+            }
+            for t in rows
+        ],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -260,6 +311,88 @@ def patch_ticket(
 ) -> dict[str, Any]:
     t = ticket_service.update_ticket(db, p, ticket_id, body.model_dump(exclude_unset=True))
     return ser.ticket(t, p)
+
+
+class AssignBody(BaseModel):
+    assignee_user_id: str | None = None
+
+
+class BulkBody(BaseModel):
+    ticket_ids: list[str] = Field(min_length=1, max_length=100)
+    changes: dict[str, str | None]
+
+
+class ViewBody(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    query: str = Field(max_length=500)
+
+
+@router.post("/tickets/{ticket_id}/assign")
+def assign(
+    ticket_id: str, body: AssignBody, p: Principal = Depends(staff_principal), db: Session = DB
+) -> dict[str, Any]:
+    t = ticket_service.assign(db, p, ticket_id, body.assignee_user_id)
+    return ser.ticket(t, p)
+
+
+@router.post("/tickets/bulk")
+def bulk(body: BulkBody, p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, Any]:
+    return ticket_service.bulk_update(db, p, body.ticket_ids, body.changes)
+
+
+@router.get("/home")
+def home(p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, Any]:
+    return ticket_service.home(db, p)
+
+
+@router.get("/staff")
+def staff_members(p: Principal = Depends(staff_principal), db: Session = DB) -> list[dict[str, str]]:
+    rows = db.execute(
+        select(User, Membership.role)
+        .join(Membership, Membership.user_id == User.id)
+        .where(Membership.organization_id == p.organization_id, Membership.role.in_(("admin", "support")))
+        .order_by(User.name)
+    ).all()
+    return [{"id": u.id, "name": u.name, "role": role} for u, role in rows]
+
+
+@router.get("/views")
+def list_views(p: Principal = Depends(staff_principal), db: Session = DB) -> list[dict[str, str]]:
+    rows = db.execute(
+        select(SavedView)
+        .where(SavedView.user_id == p.user_id, SavedView.organization_id == p.organization_id)
+        .order_by(SavedView.name)
+    ).scalars()
+    return [{"id": v.id, "name": v.name, "query": v.query} for v in rows]
+
+
+@router.post("/views", status_code=201)
+def save_view(body: ViewBody, p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, str]:
+    if body.query.startswith(("http", "/")) or "\n" in body.query:
+        raise ValidationFailed("a view stores only the inbox query string")
+    v = db.execute(
+        select(SavedView).where(
+            SavedView.user_id == p.user_id,
+            SavedView.organization_id == p.organization_id,
+            SavedView.name == body.name.strip(),
+        )
+    ).scalar_one_or_none()
+    if v is None:
+        v = SavedView(organization_id=p.organization_id, user_id=p.user_id, name=body.name.strip(), query="")
+        db.add(v)
+    v.query = body.query.lstrip("?")
+    db.flush()
+    return {"id": v.id, "name": v.name, "query": v.query}
+
+
+@router.delete("/views/{view_id}", status_code=204)
+def delete_view(view_id: str, p: Principal = Depends(staff_principal), db: Session = DB) -> None:
+    v = db.execute(
+        select(SavedView).where(SavedView.id == view_id, SavedView.user_id == p.user_id)
+    ).scalar_one_or_none()
+    if v is None:
+        raise NotFound("view not found")
+    db.delete(v)
 
 
 @router.get("/accounts")
