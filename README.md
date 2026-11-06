@@ -97,8 +97,7 @@ container builds. CI never calls a paid model and does not assess live model qua
   have been recorded yet.
 - Response targets use 24/7 elapsed hours; there is no business-hours calendar.
 - External connectors are disabled; a simulated adapter exists only for failure-mode tests.
-- The read-only MCP endpoint is deferred: read-scoped tokens can be created and revoked and are rejected by REST
-  endpoints, but no MCP server is exposed.
+- Read-only MCP endpoint at `/mcp/` (streamable HTTP) for `mcp:read` tokens; see ADR 0008.
 - PDF ingestion and PDF export are not implemented.
 
 ## License

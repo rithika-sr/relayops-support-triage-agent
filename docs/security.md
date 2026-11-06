@@ -45,7 +45,10 @@ an admin reviewer.
 
 Admins can create read-scoped tokens (`mcp:read`). Plaintext is shown once; only the SHA-256 digest is stored;
 revocation is immediate. Bearer tokens are rejected by every REST endpoint, so a read token cannot perform
-mutations. The MCP endpoint that would accept them is deferred and not exposed.
+mutations. The read-only MCP endpoint at `/mcp/` (streamable HTTP, official `mcp` SDK) accepts them: each
+request re-resolves the token, so revocation is immediate; tools run as the token owner through the scoped
+services, so another organization's records are not found; Host and Origin headers are checked against
+configured origins. All tools are annotated read-only and none writes records. See ADR 0008.
 
 ## Secrets and local files
 

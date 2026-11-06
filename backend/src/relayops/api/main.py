@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from relayops.agents.llm import ModelUnavailable
+from relayops.api import mcp as mcp_endpoint
 from relayops.api.routers import (
     auth,
     claim_labels,
@@ -34,7 +35,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     with session_scope() as db:
         mode = require_mode(db)
     log.info("RelayOps API serving %s data", mode)
-    yield
+    async with mcp_endpoint.mounted.running():
+        yield
 
 
 def create_app() -> FastAPI:
@@ -94,6 +96,8 @@ def create_app() -> FastAPI:
         settings.router,
     ):
         app.include_router(r, prefix="/api")
+    # Read-only MCP over streamable HTTP at /mcp; bearer API tokens with the mcp:read scope only.
+    app.mount("/mcp", mcp_endpoint.mounted)
     return app
 
 

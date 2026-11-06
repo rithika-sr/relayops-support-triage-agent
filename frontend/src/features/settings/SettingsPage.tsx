@@ -35,7 +35,7 @@ function Admin() {
         {invite.error ? <Notice tone="danger">{invite.error.detail}</Notice> : null}
       </Card>
       <Card title="Read-only API tokens (MCP scope)">
-        <Notice tone="warn">The MCP read endpoint is deferred in this alpha: tokens can be created and revoked and are rejected by every REST endpoint, but no MCP server is exposed yet.</Notice>
+        <Notice>Use a token as a bearer credential for the read-only MCP endpoint at <code className="font-mono">/mcp/</code> (streamable HTTP). It can search knowledge and read tickets, investigations, and artifacts in this organization. It cannot change anything, and every REST endpoint rejects it. Revoking a token stops it on the next request.</Notice>
         <ul className="mt-2 text-sm">{tokens.data?.map((t) => <li key={t.id} className="flex items-center gap-2">{t.name} <Badge>{t.scopes.join(",")}</Badge><span className="text-xs text-muted">{fmtDate(t.created_at)}</span>{t.revoked_at ? <Badge tone="danger">revoked</Badge> : <Button variant="danger" onClick={() => revoke.mutate(t.id)}>Revoke</Button>}</li>)}</ul>
         <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); mkTok.mutate(); }}><Input aria-label="Token name" placeholder="token name" value={tokName} onChange={(e) => setTokName(e.target.value)} /><Button type="submit" disabled={!tokName} busy={mkTok.isPending}>Create</Button></form>
         {mkTok.data ? <Notice tone="ok">Token (shown once): <Mono>{mkTok.data.token}</Mono></Notice> : null}

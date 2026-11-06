@@ -1,6 +1,6 @@
 # 0007: Read-only MCP endpoint deferred
 
-Status: accepted for this release
+Status: superseded by [0008](0008-read-only-mcp-endpoint.md)
 
 ## Context
 
