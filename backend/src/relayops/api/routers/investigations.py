@@ -199,7 +199,7 @@ def detail(run_id: str, p: Principal = Depends(staff_principal), db: Session = D
     acts = list(db.execute(select(ActionRecord).where(ActionRecord.run_id == run.id)).scalars())
     evidence: dict[str, Any] = {}
     for e in events:
-        if e.kind == "tool_result":
+        if e.kind in ("tool_result", "trusted_lookup"):
             evidence.update(e.payload.get("evidence", {}))
     return {
         "run": {

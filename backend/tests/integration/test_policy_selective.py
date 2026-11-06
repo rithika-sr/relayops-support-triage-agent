@@ -164,3 +164,93 @@ def test_selective_run_skips_investigation_and_records_lookups(db, tmp_path):
     lookup = next(e for e in d["events"] if e["kind"] == "trusted_lookup")
     assert lookup["payload"]["applied"] and lookup["payload"]["decision"]["rule"] == "known_issue_signature_version"
     assert {g["id"]: g["state"] for g in d["graph"]}["investigate"] == "pending"
+
+
+def _agent_run(creds, ticket, script):
+    use_script(script)
+    cust, support = client(CUSTOMER, creds), client(SUPPORT, creds)
+    tid = cust.post("/api/tickets", json=ticket).json()["ticket"]["id"]
+    from relayops.services import runs
+    from tests.factories import principal
+
+    with new_session() as s:
+        run = runs.start_run(s, principal(s, SUPPORT), tid, execution="agent")
+        s.commit()
+        run_id = run.id
+    drain()
+    return support.get(f"/api/investigations/{run_id}").json()
+
+
+def _extract(version, code, component):
+    def script(purpose, user):
+        if purpose == "extract":
+            return {
+                "intent": "bug",
+                "component": component,
+                "product_version": version,
+                "error_code": code,
+                "first_seen": None,
+                "summary": "reported failure",
+            }
+        if purpose == "investigate":
+            return {"purpose": "Enough evidence.", "action": "finish", "tool_calls": []}
+        if purpose == "propose":
+            script.propose_prompt = user
+            return {
+                "route": "clarification",
+                "rationale": "fixture",
+                "evidence_ids": [],
+                "missing_facts": [],
+                "clarifying_questions": ["When did it start?"],
+                "observations": [],
+                "hypotheses": [],
+            }
+        if purpose == "draft_reply":
+            return {"reply": "Thanks, could you tell us when this started?", "evidence_ids": []}
+        return {}
+
+    return script
+
+
+def test_adaptive_path_sees_trusted_incident_as_evidence_and_signal(db, tmp_path):
+    creds = seeded(db, tmp_path)
+    script = _extract("2.4", "SLACK_DELIVERY_DELAY", "notifications")
+    d = _agent_run(
+        creds,
+        {
+            "subject": "Slack alerts late",
+            "body": "Slack notifications are delayed (SLACK_DELIVERY_DELAY).",
+            "component": "notifications",
+            "product_version": "2.4",
+            "error_code": "SLACK_DELIVERY_DELAY",
+        },
+        script,
+    )
+    assert any(e["source_type"] == "incident" for e in _ev(d))
+    assert "trusted record lookup: reported signature SLACK_DELIVERY_DELAY" in script.propose_prompt
+    assert "1 active reviewed incident(s)" in script.propose_prompt
+    lookup = next(e for e in d["events"] if e["kind"] == "trusted_lookup")
+    assert lookup["payload"]["applied"] is False  # the adaptive path still chooses its own route
+
+
+def test_adaptive_path_near_miss_version_adds_no_issue_evidence(db, tmp_path):
+    creds = seeded(db, tmp_path)
+    script = _extract("2.5", "EXPORT_500", "exports")
+    d = _agent_run(
+        creds,
+        {
+            "subject": "Small exports fail",
+            "body": "EXPORT_500 on 2.5 for tiny exports.",
+            "component": "exports",
+            "product_version": "2.5",
+            "error_code": "EXPORT_500",
+        },
+        script,
+    )
+    assert not any(e["source_type"] == "issue" for e in _ev(d))  # ENG-101 is 2.4 only
+    assert "0 issue(s) matching signature and version" in script.propose_prompt
+
+
+def _ev(d):
+    ev = d["evidence"]
+    return list(ev.values()) if isinstance(ev, dict) else ev

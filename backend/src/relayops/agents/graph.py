@@ -450,7 +450,10 @@ def precheck(state: RunState) -> dict[str, Any]:
     decision = policy.decide(facts, restricted=t["restricted"], allowed_routes=ctx["playbook"]["allowed_routes"])
     execution = ctx.get("execution", "agent")
     evidence = dict(state["evidence"])
-    if execution == "selective" and decision.decisive:
+    # Record-backed issues and incidents the policy found are evidence on both paths; only the selective path
+    # also takes the route from the policy.
+    added: dict[str, Any] = {}
+    if decision.decisive:
         items = []
         if decision.issue:
             i = decision.issue
@@ -499,7 +502,8 @@ def precheck(state: RunState) -> dict[str, Any]:
             it["snapshot_hash"] = content_hash(
                 {k: it[k] for k in ("source_type", "source_id", "version", "content_hash", "excerpt")}
             )
-        _register(evidence, items)
+        for eid in _register(evidence, items):
+            added[eid] = evidence[eid]
     runs.emit(
         run_id,
         "trusted_lookup",
@@ -509,6 +513,7 @@ def precheck(state: RunState) -> dict[str, Any]:
             "decision": decision.as_dict(),
             "execution": execution,
             "applied": execution == "selective" and decision.decisive,
+            "evidence": added,
         },
         current_node="investigate",
     )

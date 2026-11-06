@@ -24,6 +24,8 @@ INVESTIGATE_SYSTEM = f"""You are the support investigator. Decide the next evide
 You may call only the listed read tools. Each turn you either call 1-2 tools or finish.
 Finish when the evidence is sufficient for a route, or when more searching would repeat earlier calls.
 Never repeat a call that already appears in previous steps; its results are already in the evidence list.
+When the customer describes delays, outages, or something failing for many users, check get_incident_snapshot for
+that component early.
 Write a one-sentence observable purpose for your step (what you will check and why), not hidden reasoning.
 Tool scope (organization, customer account, time) is fixed by the system; do not try to set it. {DATA_RULE}"""
 
@@ -34,7 +36,14 @@ the evidence. Rules:
   issue exists, prefer link_existing_issue even if some details are missing; list them as missing_facts.
 - A deployment shortly before the errors is correlation, not a confirmed root cause. Say so.
 - Never claim an outage is confirmed unless a reviewed incident says so.
-- If facts required to act are missing, choose clarification and list the missing facts.
+- incident_link when an active reviewed incident in the evidence matches this ticket's error signature or symptoms.
+  List any missing details as missing_facts; do not ask first.
+- new_engineering_handoff when the ticket reports a concrete failure (an error code, or a named feature failing in a
+  described way) and no known issue or active incident matches it. List missing details as missing_facts; engineering
+  can start without them.
+- clarification only when you cannot tell what is failing or what the customer is asking, and no record lookup
+  identifies the problem. "Required facts not yet known" alone is not a reason to ask when the records already
+  identify the problem.
 - Security-sensitive reports go to specialist_review.
 - Clarifying questions must ask only for facts the customer knows (steps, sizes, times, request IDs, version),
   never about internal deployments, logs, or engineering systems.
@@ -134,6 +143,15 @@ def signals_block(ctx: dict[str, Any], state: dict[str, Any]) -> str:
     ]
     ex = state["extraction"]
     missing = [f for f in ctx["playbook"].get("required_facts", []) if not ex.get(f)]
+    t = state.get("trusted") or {}
+    lookup = "not run (no error signature reported)"
+    if t.get("signature"):
+        lookup = (
+            f"reported signature {t['signature']} on version {t.get('version') or 'unknown'}: "
+            f"{len(t.get('matching_issues') or [])} issue(s) matching signature and version, "
+            f"{len(t.get('incidents') or [])} active reviewed incident(s) with this signature; "
+            f"this account's error records {'show' if t.get('signature_basis') == 'corroborated' else 'do not show'} it"
+        )
     obsolete = [k for k, e in ev.items() if e["source_type"] == "case"]
     return (
         "Code-computed signals:\n"
@@ -141,7 +159,8 @@ def signals_block(ctx: dict[str, Any], state: dict[str, Any]) -> str:
         f"- feature-request issues in evidence: {features or 'none'}\n"
         f"- active reviewed incidents in evidence: {incidents or 'none'}\n"
         f"- required facts not yet known: {missing or 'none'}\n"
-        f"- historical cases (lower authority than current policy): {obsolete or 'none'}"
+        f"- historical cases (lower authority than current policy): {obsolete or 'none'}\n"
+        f"- trusted record lookup: {lookup}"
     )
 
 
