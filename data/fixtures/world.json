@@ -1,0 +1,109 @@
+{
+  "_note": "Synthetic RelayOps demo world. All companies, people, records, and metrics are fictional. Offsets are hours relative to the world anchor (default 2026-11-06T12:00:00Z).",
+  "world_version": "world_v1",
+  "default_anchor": "2026-11-06T12:00:00Z",
+  "organizations": [
+    {
+      "id": "org_taskflow",
+      "name": "TaskFlow Cloud",
+      "slug": "taskflow-cloud",
+      "accounts": [
+        {"id": "acct_northstar", "name": "Northstar Logistics", "plan": "business", "product_version": "2.4", "region": "us"},
+        {"id": "acct_acme", "name": "Acme Robotics", "plan": "enterprise", "product_version": "2.5", "region": "us"},
+        {"id": "acct_bluefin", "name": "Bluefin Health", "plan": "team", "product_version": "2.4", "region": "eu"},
+        {"id": "acct_cedar", "name": "Cedar & Pine Studio", "plan": "starter", "product_version": "2.3", "region": "us"},
+        {"id": "acct_orbit", "name": "Orbit Analytics", "plan": "enterprise", "product_version": "2.5", "region": "eu"}
+      ],
+      "users": [
+        {"email": "admin@relayops.local", "name": "Avery Admin", "role": "admin"},
+        {"email": "support@relayops.local", "name": "Sam Support", "role": "support"},
+        {"email": "customer@northstar.local", "name": "Nadia Northstar", "role": "customer", "account": "acct_northstar"}
+      ],
+      "owners": [
+        {"component": "exports", "team": "data-platform", "escalation": "#eng-data-platform (local)"},
+        {"component": "sso", "team": "identity", "escalation": "#eng-identity (local)"},
+        {"component": "webhooks", "team": "integrations-platform", "escalation": "#eng-integrations (local)"},
+        {"component": "integrations", "team": "integrations-platform", "escalation": "#eng-integrations (local)"},
+        {"component": "notifications", "team": "messaging", "escalation": "#eng-messaging (local)"},
+        {"component": "api", "team": "api-platform", "escalation": "#eng-api (local)"},
+        {"component": "billing", "team": "billing", "escalation": "#eng-billing (local)"},
+        {"component": "projects", "team": "core-product", "escalation": "#eng-core (local)"}
+      ],
+      "issues": [
+        {"key": "ENG-101", "title": "Synchronous CSV export fails with EXPORT_500 above ~50k tasks", "kind": "bug", "component": "exports", "status": "investigating", "affected_versions": ["2.4"], "error_signature": "EXPORT_500", "description": "Synchronous exporter runs out of memory on projects above roughly 50,000 tasks on 2.4. Workaround: background export."},
+        {"key": "ENG-102", "title": "XLSX export dropped custom field columns", "kind": "bug", "component": "exports", "status": "fixed", "affected_versions": ["2.3"], "fixed_in_version": "2.4", "error_signature": null, "description": "Custom fields missing from XLSX on 2.3. Fixed in 2.4."},
+        {"key": "ENG-103", "title": "SAML assertions rejected under small clock skew", "kind": "bug", "component": "sso", "status": "fixed", "affected_versions": ["2.3"], "fixed_in_version": "2.4", "error_signature": "SAML_CLOCK_SKEW", "description": "Tolerance was 30 seconds; raised to 3 minutes in 2.4."},
+        {"key": "ENG-104", "title": "Webhook retries stop after 3 attempts instead of 8", "kind": "bug", "component": "webhooks", "status": "open", "affected_versions": ["2.5"], "error_signature": "WEBHOOK_RETRY_EXHAUSTED", "description": "Retry scheduler in the rewritten delivery service caps attempts at 3."},
+        {"key": "ENG-105", "title": "Digest emails delayed by up to two hours", "kind": "bug", "component": "notifications", "status": "investigating", "affected_versions": ["2.5"], "error_signature": "NOTIFY_QUEUE_LAG", "description": "Per-workspace batching backs up the digest queue during peak hours."},
+        {"key": "ENG-106", "title": "Rate-limit headers missing on some 429 responses", "kind": "bug", "component": "api", "status": "open", "affected_versions": ["2.4", "2.5"], "error_signature": "API_429_NO_HEADERS", "description": "Edge proxy strips Retry-After on cached 429s."},
+        {"key": "ENG-107", "title": "Proration credit shown twice on invoice preview", "kind": "bug", "component": "billing", "status": "fixed", "affected_versions": ["2.4"], "fixed_in_version": "2.4.2", "error_signature": null, "description": "Display-only duplication; invoices were correct."},
+        {"key": "ENG-108", "title": "Archived projects reappear in global search", "kind": "bug", "component": "projects", "status": "open", "affected_versions": ["2.5"], "error_signature": "SEARCH_ARCHIVED_VISIBLE", "description": "Search index does not apply archive filter for workspaces migrated during rollout."},
+        {"key": "ENG-109", "title": "Slack integration token refresh fails with 401", "kind": "bug", "component": "integrations", "status": "investigating", "affected_versions": ["2.4", "2.5"], "error_signature": "SLACK_TOKEN_REFRESH_401", "description": "Refresh uses rotated client secret cache."},
+        {"key": "ENG-110", "title": "Feature: scheduled exports to S3-compatible storage", "kind": "feature", "component": "exports", "status": "open", "affected_versions": [], "error_signature": null, "description": "Customers request recurring exports delivered to their own bucket."},
+        {"key": "ENG-111", "title": "Feature: per-project webhook secrets", "kind": "feature", "component": "webhooks", "status": "open", "affected_versions": [], "error_signature": null, "description": "Separate signing secrets per project endpoint."},
+        {"key": "ENG-112", "title": "Feature: Gantt baseline comparison", "kind": "feature", "component": "projects", "status": "open", "affected_versions": [], "error_signature": null, "description": "Compare current schedule against a saved baseline."},
+        {"key": "ENG-113", "title": "PDF board export times out for large boards", "kind": "bug", "component": "exports", "status": "open", "affected_versions": ["2.3"], "error_signature": "EXPORT_TIMEOUT", "description": "Legacy PDF renderer on 2.3."},
+        {"key": "ENG-114", "title": "Legacy exporter EXPORT_500 on 2.2", "kind": "bug", "component": "exports", "status": "fixed", "affected_versions": ["2.2"], "fixed_in_version": "2.3", "error_signature": "EXPORT_500", "description": "Same error code, different cause: legacy exporter null pointer on 2.2. Not applicable to 2.4."},
+        {"key": "ENG-115", "title": "SCIM deprovisioning delayed up to 1 hour", "kind": "bug", "component": "sso", "status": "open", "affected_versions": ["2.5"], "error_signature": "SCIM_SYNC_LAG", "description": "SCIM events processed by batch job."}
+      ],
+      "deployments": [
+        {"component": "exports", "version": "2.4.3", "offset_hours": -150, "summary": "Exporter memory tuning for background jobs."},
+        {"component": "api", "version": "2.5.0", "offset_hours": -70, "summary": "API gateway 2.5 rollout wave 1."},
+        {"component": "webhooks", "version": "2.5.0", "offset_hours": -70, "summary": "Rewritten webhook delivery service, rollout wave 1 (Acme Robotics, Orbit Analytics)."},
+        {"component": "notifications", "version": "2.5.0", "offset_hours": -52, "summary": "Per-workspace digest batching."},
+        {"component": "projects", "version": "2.5.0", "offset_hours": -48, "summary": "Search index migration for archived projects."},
+        {"component": "webhooks", "version": "2.5.1", "offset_hours": -20, "summary": "Delivery worker autoscaling configuration."},
+        {"component": "sso", "version": "2.5.0", "offset_hours": -30, "summary": "SCIM batch processor."},
+        {"component": "billing", "version": "2.4.2", "offset_hours": -400, "summary": "Invoice preview fix."}
+      ],
+      "error_series": [
+        {"component": "exports", "signature": "EXPORT_500", "product_version": "2.4", "accounts": ["acct_northstar", "acct_bluefin"], "start_offset": -168, "end_offset": 0, "per_hour": [0, 2]},
+        {"component": "webhooks", "signature": "WEBHOOK_SIG_MISMATCH", "product_version": "2.5", "accounts": ["acct_acme", "acct_orbit"], "start_offset": -69, "end_offset": 0, "per_hour": [3, 14]},
+        {"component": "webhooks", "signature": "WEBHOOK_RETRY_EXHAUSTED", "product_version": "2.5", "accounts": ["acct_acme"], "start_offset": -60, "end_offset": 0, "per_hour": [0, 2]},
+        {"component": "notifications", "signature": "NOTIFY_QUEUE_LAG", "product_version": "2.5", "accounts": ["acct_acme", "acct_orbit"], "start_offset": -28, "end_offset": -2, "per_hour": [1, 6]},
+        {"component": "api", "signature": "API_429", "product_version": "2.4", "accounts": ["acct_northstar", "acct_bluefin", "acct_cedar"], "start_offset": -168, "end_offset": 0, "per_hour": [0, 3]}
+      ],
+      "incidents": [
+        {"id": "inc_notify_lag", "title": "Delayed digest notifications", "component": "notifications", "status": "monitoring", "severity": "P3", "start_offset": -28, "resolved_offset": null, "error_signature": "NOTIFY_QUEUE_LAG", "affected_versions": ["2.5"], "public_visible": true, "public_summary": "Some daily digest emails are arriving up to two hours late. Instant notifications are not affected. We are monitoring a fix.", "internal_notes": "Linked to ENG-105. Digest queue backlog during peak."},
+        {"id": "inc_export_sept", "title": "Export service degradation (resolved)", "component": "exports", "status": "resolved", "severity": "P2", "start_offset": -1300, "resolved_offset": -1294, "error_signature": "EXPORT_TIMEOUT", "affected_versions": ["2.4"], "public_visible": true, "public_summary": "Between 09:00 and 15:00 UTC exports were slower than usual and some timed out. Service is fully restored.", "internal_notes": "Storage throttling."},
+        {"id": "inc_saml_idp", "title": "Intermittent SAML failures for one identity provider", "component": "sso", "status": "investigating", "severity": "P3", "start_offset": -10, "resolved_offset": null, "error_signature": "SAML_IDP_TIMEOUT", "affected_versions": ["2.5"], "public_visible": false, "public_summary": null, "internal_notes": "Internal only: one IdP vendor metadata endpoint timing out; not confirmed customer-wide."}
+      ],
+      "open_tickets": [
+        {"external_event_id": "seed-webhook-acme-1", "account": "acct_acme", "offset_hours": -60, "subject": "Webhook deliveries failing signature checks since Monday", "body": "Our robot dispatch receiver started rejecting TaskFlow webhooks with signature mismatch errors. Nothing changed on our side. We see WEBHOOK_SIG_MISMATCH in our logs.", "reported_severity": "high", "component": "webhooks", "product_version": "2.5", "error_code": "WEBHOOK_SIG_MISMATCH"},
+        {"external_event_id": "seed-webhook-orbit-1", "account": "acct_orbit", "offset_hours": -57, "subject": "Signature verification fails for webhooks", "body": "About a third of webhook deliveries fail HMAC verification on our endpoint. Error WEBHOOK_SIG_MISMATCH.", "reported_severity": "normal", "component": "webhooks", "product_version": "2.5", "error_code": "WEBHOOK_SIG_MISMATCH"},
+        {"external_event_id": "seed-webhook-acme-2", "account": "acct_acme", "offset_hours": -55, "subject": "More webhook signature failures (warehouse 2)", "body": "Second warehouse integration also failing with WEBHOOK_SIG_MISMATCH.", "reported_severity": "high", "component": "webhooks", "product_version": "2.5", "error_code": "WEBHOOK_SIG_MISMATCH"},
+        {"external_event_id": "seed-notify-acme-1", "account": "acct_acme", "offset_hours": -20, "subject": "Morning digest arrived late", "body": "Our team digest arrived at 09:40 instead of 08:00.", "reported_severity": "low", "component": "notifications", "product_version": "2.5", "error_code": "NOTIFY_QUEUE_LAG"},
+        {"external_event_id": "seed-notify-orbit-1", "account": "acct_orbit", "offset_hours": -18, "subject": "Digest emails delayed", "body": "Digests are late again today, NOTIFY_QUEUE_LAG on the status widget.", "reported_severity": "low", "component": "notifications", "product_version": "2.5", "error_code": "NOTIFY_QUEUE_LAG"},
+        {"external_event_id": "seed-api-bluefin-1", "account": "acct_bluefin", "offset_hours": -6, "subject": "429 responses without Retry-After", "body": "Our sync job gets HTTP 429 but the Retry-After header is missing so our client retries immediately.", "reported_severity": "normal", "component": "api", "product_version": "2.4", "error_code": "API_429_NO_HEADERS"},
+        {"external_event_id": "seed-export-bluefin-1", "account": "acct_bluefin", "offset_hours": -4, "subject": "Export fails for our clinical trials board", "body": "CSV export gives EXPORT_500 on the trials board (around 70k tasks).", "reported_severity": "normal", "component": "exports", "product_version": "2.4", "error_code": "EXPORT_500"}
+      ]
+    },
+    {
+      "id": "org_quillstack",
+      "name": "Quillstack Labs (isolation test org)",
+      "slug": "quillstack-labs",
+      "accounts": [
+        {"id": "acct_quill_vega", "name": "Vega Retail", "plan": "business", "product_version": "2.4", "region": "us"}
+      ],
+      "users": [
+        {"email": "admin@quillstack.local", "name": "Quinn Quillstack", "role": "admin"}
+      ],
+      "owners": [{"component": "exports", "team": "quill-data", "escalation": "#quill-data (local)"}],
+      "issues": [
+        {"key": "QS-1", "title": "QUILLSTACK-PRIVATE EXPORT_500 for Vega Retail ledger plugin", "kind": "bug", "component": "exports", "status": "open", "affected_versions": ["2.4"], "error_signature": "EXPORT_500", "description": "Private to Quillstack."}
+      ],
+      "deployments": [
+        {"component": "exports", "version": "2.4.9", "offset_hours": -10, "summary": "QUILLSTACK-PRIVATE exporter hotfix."}
+      ],
+      "error_series": [
+        {"component": "exports", "signature": "EXPORT_500", "product_version": "2.4", "accounts": ["acct_quill_vega"], "start_offset": -48, "end_offset": 0, "per_hour": [5, 9]}
+      ],
+      "incidents": [
+        {"id": "inc_quill_exports", "title": "QUILLSTACK-PRIVATE export outage", "component": "exports", "status": "investigating", "severity": "P1", "start_offset": -8, "resolved_offset": null, "error_signature": "EXPORT_500", "affected_versions": ["2.4"], "public_visible": true, "public_summary": "QUILLSTACK-PRIVATE: exports are down for Quillstack customers.", "internal_notes": "Private."}
+      ],
+      "open_tickets": [
+        {"external_event_id": "seed-quill-export-1", "account": "acct_quill_vega", "offset_hours": -5, "subject": "QUILLSTACK-PRIVATE export fails with EXPORT_500", "body": "Vega Retail ledger export fails with EXPORT_500 on large projects.", "reported_severity": "high", "component": "exports", "product_version": "2.4", "error_code": "EXPORT_500"}
+      ]
+    }
+  ]
+}

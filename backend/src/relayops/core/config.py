@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 1.0
 
     action_mode: Literal["local"] = "local"
+    # Synthetic world anchor for seeded timestamps: ISO-8601 UTC, or "now" (rounded to the hour).
+    world_anchor: str = ""
     login_max_failures: int = 5
     login_window_minutes: int = 15
 
