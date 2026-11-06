@@ -22,7 +22,9 @@ PATTERNS = {
     "relayops api token": re.compile(r"\brlo_[A-Za-z0-9_-]{30,}\b"),
     "generic assignment": re.compile(r"(?i)\b(password|secret|api_key|token)\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}['\"]"),
 }
-ALLOWED = {"change-me", "change-me-to-a-long-random-value", "test-session-secret-0123456789"}
+# Known non-secret values: .env.example placeholders and the test-suite fixture password.
+ALLOWED = {"change-me", "change-me-to-a-long-random-value", "test-session-secret-0123456789",
+           "correct-horse-battery-staple"}
 
 
 def tracked() -> list[str]:
