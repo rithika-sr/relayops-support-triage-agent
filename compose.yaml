@@ -1,0 +1,21 @@
+name: relayops
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: relayops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run make setup to generate .env}
+      POSTGRES_DB: relayops
+    ports:
+      - "127.0.0.1:${RELAYOPS_DB_PORT:-5440}:5432"
+    volumes:
+      - relayops_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relayops -d relayops"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  relayops_pgdata:

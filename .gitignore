@@ -1,0 +1,27 @@
+.env
+.env.*
+!.env.example
+!.env.test.example
+.local/
+*.local.json
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+.next/
+dist/
+coverage/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+data/uploads/
+data/runtime/
+*.pem
+*.key
+
+# Local development orchestration
+.claude/
+CLAUDE.md
