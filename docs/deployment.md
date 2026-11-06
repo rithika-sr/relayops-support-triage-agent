@@ -57,4 +57,5 @@ check).
 ## Not verified
 
 Kubernetes, managed databases, and TLS termination are not part of this release. The GitHub Issues connector
-talks only to loopback test services; live external writes need a separately authorized operation.
+accepts loopback test services, or `https://api.github.com` for allow-listed repositories when an operator enables it
+(ADR 0015). The live path has not been exercised against real GitHub.

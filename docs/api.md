@@ -60,7 +60,7 @@ it through the web origin's `/api` proxy.
 | `GET/POST /settings/members`, `/invitations`, `/tokens`, `POST /settings/tokens/{id}/revoke` | admin | Organization administration |
 | `GET /settings/calendars`, `POST /settings/calendars`, `POST /settings/calendars/deactivate`, `POST /settings/calendars/preview` | staff / admin / admin / staff | Versioned service calendars and due-time preview |
 | `POST /imports/preview`, `POST /imports`, `GET /imports` | staff | CSV/JSON ticket import: dry run, commit by `expected_sha256`, history |
-| `GET /integrations`, `POST /integrations/webhooks`, `POST /integrations/github`, `POST /integrations/{id}/test`, `/rotate-secret`, `/enable`, `/disable`, `GET /integrations/{id}/receipts` | admin | Connections; GitHub targets must be loopback in this release |
+| `GET /integrations`, `POST /integrations/webhooks`, `POST /integrations/github`, `POST /integrations/{id}/test`, `/rotate-secret`, `/enable`, `/disable`, `GET /integrations/{id}/receipts` | admin | Connections; GitHub targets: loopback test services, or allow-listed repos on api.github.com when enabled (ADR 0015) |
 | `POST /ingest/webhooks/{connection_id}` | signed sender | `X-RelayOps-Timestamp`, `X-RelayOps-Signature: sha256=…` over `<timestamp>.<raw body>`; no session or CSRF |
 | `GET /portal/help/search?q=`, `GET /portal/help/articles/{id}`, `POST /portal/help/articles/{id}/feedback`, `POST /portal/help/contact`, `GET /portal/onboarding` | customer | Self-service Help and Getting started |
 | `GET /success/accounts`, `/success/accounts/{id}/onboarding`, `/success/retention`, `/success/opportunities` | staff | Customer Success views (instance data class only) |

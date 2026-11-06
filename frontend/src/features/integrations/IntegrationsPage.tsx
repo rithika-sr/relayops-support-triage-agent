@@ -64,7 +64,7 @@ export function IntegrationsPage() {
               <p className="mt-1 text-sm">Last successful delivery: {c.last_success_at ? fmtDate(c.last_success_at) : "never"}</p>
               {c.last_error ? <p className="text-sm text-danger-700">Last error ({fmtDate(c.last_error_at)}): {c.last_error}</p> : null}
               {c.kind === "inbound_webhook" ? <p className="mt-1 text-[13px] text-muted">Endpoint: <Mono>/api/ingest/webhooks/{c.id}</Mono></p> : null}
-              {c.kind === "github_issues" ? <p className="mt-1 text-[13px] text-muted">Mirrors approved handoffs to <Mono>{String(c.config.repo)}</Mono> at <Mono>{String(c.config.base_url)}</Mono> (local test service).</p> : null}
+              {c.kind === "github_issues" ? <p className="mt-1 text-[13px] text-muted">Mirrors approved handoffs to <Mono>{String(c.config.repo)}</Mono> at <Mono>{String(c.config.base_url)}</Mono> ({c.config.target === "github_live" ? "live GitHub" : "local test service"}).</p> : null}
               {c.kind === "inbound_webhook" ? <details className="mt-3"><summary className="cursor-pointer text-sm font-medium">Recent deliveries</summary><div className="mt-2"><Receipts id={c.id} /></div></details> : null}
             </Card>
           ))}
@@ -104,7 +104,7 @@ function GitHubForm() {
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
   return (
     <Card title="Mirror handoffs to a GitHub-compatible tracker">
-      <Notice tone="warn">This release only connects to a loopback test service (localhost). Writing to github.com is a live external operation and needs a separately authorized setup; a token alone does not enable it.</Notice>
+      <Notice tone="warn">Two targets are accepted: a local test service on this machine (localhost), or https://api.github.com when the server operator has enabled live GitHub and allow-listed the repository. A token alone does not enable live writes.</Notice>
       <form className="mt-3 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
         <Field id="gname" label="Name"><Input id="gname" value={f.name} onChange={set("name")} /></Field>
         <Field id="gurl" label="API base URL"><Input id="gurl" value={f.base_url} onChange={set("base_url")} /></Field>

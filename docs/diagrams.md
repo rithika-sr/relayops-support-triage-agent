@@ -6,7 +6,8 @@ Mermaid CLI and fails on a syntax error (`scripts/render_diagrams.py`).
 ## 1. Components (flowchart)
 
 What runs where. Everything is local: the model runs in Ollama on the same machine, and the only outbound
-connector talks to loopback test services in this release.
+connector talks to a loopback test service unless an operator enables allow-listed `api.github.com` repositories
+(implemented, not yet exercised against real GitHub).
 
 ```mermaid
 flowchart LR
@@ -29,7 +30,7 @@ flowchart LR
   end
   DB[("Postgres 17 + pgvector<br/>records, jobs, checkpoints, events")]
   Ollama["Ollama<br/>qwen3:4b-instruct, embeddinggemma"]
-  Fake["GitHub-shaped service<br/>(loopback only)"]
+  Fake["GitHub-shaped test service (loopback)<br/>or opt-in api.github.com allowlist"]
   Staff --> Pages
   Portal --> Pages
   Pages -- "/api rewrite" --> Routers

@@ -119,7 +119,7 @@ def test_remote_hosts_are_refused_without_a_live_authorization(env):
         r = env["admin"].post(
             "/api/integrations/github", json={"name": "x", "base_url": url, "repo": "a/b", "token": "t"}
         )
-        assert r.status_code == 422 and "separately authorized" in r.text
+        assert r.status_code == 422 and "not enabled" in r.text
     assert (
         env["support"]
         .post("/api/integrations/github", json={"name": "x", "base_url": env["gh"].url, "repo": "a/b", "token": "t"})
@@ -204,3 +204,94 @@ def test_disabling_before_delivery_sends_nothing(env):
     _deliver_now()
     _, receipt, msg_status, _ = _state(prop_id)
     assert msg_status == "failed" and receipt["external"]["status"] == "not_sent"
+
+
+@pytest.fixture
+def live_settings(monkeypatch):
+    from relayops.core.config import get_settings
+
+    base = get_settings()
+
+    def use(**kw):
+        s = base.model_copy(update=kw)
+        monkeypatch.setattr(github_connector, "get_settings", lambda: s)
+        return s
+
+    return use
+
+
+def test_live_profile_needs_operator_opt_in_exact_host_and_allowlist(live_settings):
+    from relayops.domain.scope import ValidationFailed
+
+    with pytest.raises(ValidationFailed, match="not enabled"):
+        github_connector.target_profile("https://api.github.com", "acme/support")
+    live_settings(github_live_enabled=True, github_repo_allowlist="acme/support, acme/eng")
+    assert github_connector.target_profile("https://api.github.com", "acme/support") == "github_live"
+    assert github_connector.target_profile("http://127.0.0.1:9", "any/repo") == "local_contract_test"
+    for url in (
+        "http://api.github.com",
+        "https://api.github.com.evil.test",
+        "https://api.github.com:8443",
+        "https://api.github.com/proxy",
+        "https://github.com",
+    ):
+        with pytest.raises(ValidationFailed, match="exactly"):
+            github_connector.target_profile(url, "acme/support")
+    with pytest.raises(ValidationFailed, match="allowlist"):
+        github_connector.target_profile("https://api.github.com", "acme/other")
+
+
+def test_live_profile_delivery_uses_github_shape_and_rechecks_allowlist(env, live_settings):
+    """No real GitHub call: an httpx MockTransport stands in for api.github.com."""
+    import httpx
+
+    live_settings(github_live_enabled=True, github_repo_allowlist="acme/support")
+    seen: list[httpx.Request] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        seen.append(req)
+        if req.method == "POST":
+            return httpx.Response(201, json={"number": 7})
+        return httpx.Response(200, json=[])
+
+    r = env["admin"].post(
+        "/api/integrations/github",
+        json={
+            "name": "Live tracker",
+            "base_url": "https://api.github.com",
+            "repo": "acme/support",
+            "token": "tok-secret",
+        },
+    )
+    assert r.status_code == 201 and r.json()["connection"]["config"]["target"] == "github_live"
+    with new_session() as s:
+        c = s.execute(select(Connection).where(Connection.name == "Live tracker")).scalar_one()
+        gh = github_connector.client_for(c, transport=httpx.MockTransport(handler))
+        assert gh.create_issue(marker="<!-- m -->", title="t", body="b") == "acme/support#7"
+    assert seen[0].url.host == "api.github.com" and seen[0].headers["authorization"] == "Bearer tok-secret"
+    assert seen[0].headers["x-github-api-version"] == "2022-11-28"
+
+    # Removing the repository from the allowlist stops delivery before any request.
+    live_settings(github_live_enabled=True, github_repo_allowlist="")
+    seen.clear()
+    with new_session() as s:
+        c = s.execute(select(Connection).where(Connection.name == "Live tracker")).scalar_one()
+        from relayops.domain.scope import ValidationFailed
+
+        with pytest.raises(ValidationFailed, match="allowlist"):
+            github_connector.client_for(c, transport=httpx.MockTransport(handler))
+    assert seen == []
+
+
+def test_rejection_text_never_echoes_the_token():
+    import httpx
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(422, text=f"bad request with {req.headers['authorization']}")
+
+    gh = github_connector.GitHubIssuesClient(
+        "http://127.0.0.1:1", "a/b", "tok-secret", transport=httpx.MockTransport(handler)
+    )
+    with pytest.raises(actions.RemoteRejected) as exc:
+        gh.create_issue(marker="m", title="t")
+    assert "tok-secret" not in str(exc.value) and "[redacted]" in str(exc.value)

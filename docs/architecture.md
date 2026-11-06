@@ -6,7 +6,7 @@
 | --- | --- |
 | Web (`frontend/`, Next.js 16, port 3020) | Landing, auth, staff workbench, customer portal. All data access goes through one typed client to same-origin `/api`, which Next rewrites to the API. |
 | API (`backend/src/relayops/api`, FastAPI, port 8020) | Authentication, CSRF, request validation, and HTTP mapping. Routers call services only. Also serves the read-only MCP endpoint (`/mcp/`) and the signed ingestion webhook. |
-| Worker (`backend/src/relayops/workers`) | Claims leased jobs, advances the LangGraph thread for a run, delivers the outbox (local topics, and the GitHub mirror to loopback test services). |
+| Worker (`backend/src/relayops/workers`) | Claims leased jobs, advances the LangGraph thread for a run, delivers the outbox (local topics, and the GitHub mirror: a loopback test service, or opt-in, allow-listed api.github.com). |
 | Postgres 17 + pgvector (Docker, port 5440) | Domain records, knowledge chunks with tsvector and 768-d vectors, LangGraph checkpoints, run events, jobs, proposals, reviews, action ledger, outbox, audit. |
 | Ollama (native, port 11434) | `qwen3:4b-instruct` for generation and `embeddinggemma` for embeddings, one inference at a time. |
 
@@ -89,7 +89,8 @@ reconstructs the run, graph state, and evidence entirely from these records.
   `pending_customer` (never resolved by drafting or replying); plus an issue link, a new `LOCAL-n` engineering issue,
   an incident link, or a restricted escalation note depending on the action.
 - With a GitHub Issues connection configured, an approved handoff also queues a `github.create_issue` outbox message.
-  The connector (`services/github_connector.py`) refuses non-loopback hosts in this release, marks each issue with
+  The connector (`services/github_connector.py`) accepts loopback test services or, when an operator opts in, allow-listed
+  repositories on `https://api.github.com` (checked before every request), marks each issue with
   the action's idempotency key, records lost responses as `unknown`, and reconciles them by marker search with
   bounded, backed-off retries. `SimulatedIssueConnector` remains for unit-level failure tests.
 

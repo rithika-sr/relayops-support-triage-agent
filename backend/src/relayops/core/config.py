@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     max_output_tokens: int = 700
     llm_timeout_seconds: float = 90.0
     embed_max_chars: int = 2000
+    # Outbound GitHub: off unless an operator enables it and allow-lists repositories (comma-separated owner/name).
+    github_live_enabled: bool = False
+    github_api_host: str = "api.github.com"
+    github_repo_allowlist: str = ""
     log_format: Literal["text", "json"] = "text"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     # Claim verifier: a local model judging cited spans. Empty model means the pinned chat model.

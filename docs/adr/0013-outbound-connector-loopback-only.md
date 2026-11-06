@@ -1,6 +1,6 @@
 # 0013: GitHub Issues connector, limited to loopback hosts in this release
 
-Status: accepted
+Status: superseded by [0015](0015-opt-in-live-github-profile.md)
 
 ## Context
 

@@ -1,9 +1,14 @@
 """Outbound GitHub Issues connector for approved engineering handoffs.
 
-Shape: GitHub REST v3 (`POST /repos/{owner}/{repo}/issues`, `GET /repos/{owner}/{repo}/issues`). In this
-release the connector only talks to loopback hosts, which is where the local GitHub-shaped test service
-runs. Writing to github.com or any other remote host is a live external operation; it stays refused until
-a separately authorized live operation enables it. A token alone does not authorize it.
+Shape: GitHub REST v3 (`POST /repos/{owner}/{repo}/issues`, `GET /repos/{owner}/{repo}/issues`). Two target
+profiles, checked when a connection is created and again before every request:
+
+- `local_contract_test`: any loopback host (the local GitHub-shaped test service). Used by the test suite.
+- `github_live`: only `https://` + the configured API host (default `api.github.com`), only when the operator
+  sets `RELAYOPS_GITHUB_LIVE_ENABLED=true`, and only for repositories in the server-side
+  `RELAYOPS_GITHUB_REPO_ALLOWLIST`. A token or an admin's request alone never enables it.
+
+Everything else is refused before any network call.
 
 Delivery runs from the outbox after the local action commits. Each issue body carries a hidden marker with
 the action's idempotency key. An ambiguous outcome (timeout, 5xx, lost response) is recorded as `unknown`
@@ -23,6 +28,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from relayops.core.clock import utcnow
+from relayops.core.config import get_settings
 from relayops.domain.scope import Principal, ValidationFailed
 from relayops.models import ActionRecord, Connection, OutboxMessage
 from relayops.repositories import scoped
@@ -35,9 +41,29 @@ REPO = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 LABEL = "relayops"
 MAX_ATTEMPTS = 5
 LIVE_REFUSAL = (
-    "remote GitHub hosts are not enabled: writing to a live tracker needs a separately authorized "
-    "live operation. Use a loopback test service."
+    "remote GitHub writes are not enabled on this server: an operator must set RELAYOPS_GITHUB_LIVE_ENABLED and "
+    "allow-list the repository. Use a loopback test service otherwise."
 )
+
+
+def target_profile(base_url: str, repo: str) -> str:
+    """local_contract_test | github_live, or ValidationFailed. Re-checked before every request."""
+    if loopback(base_url):
+        return "local_contract_test"
+    s = get_settings()
+    u = urlparse(base_url)
+    if not s.github_live_enabled:
+        raise ValidationFailed(LIVE_REFUSAL)
+    if (
+        u.scheme != "https"
+        or (u.hostname or "").lower() != s.github_api_host.lower()
+        or u.path not in ("", "/")
+        or u.port
+    ):
+        raise ValidationFailed(f"live GitHub connections must use https://{s.github_api_host} exactly")
+    if repo.lower() not in {r.strip().lower() for r in s.github_repo_allowlist.split(",") if r.strip()}:
+        raise ValidationFailed(f"repository {repo} is not in this server's GitHub allowlist")
+    return "github_live"
 
 
 def loopback(base_url: str) -> bool:
@@ -64,9 +90,9 @@ class GitHubIssuesClient:
         timeout: float = 10.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
-        if not loopback(base_url):
-            raise ValidationFailed(LIVE_REFUSAL)
+        self.profile = target_profile(base_url, repo)
         self.repo = repo
+        self._token = token
         self.http = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=timeout,
@@ -116,8 +142,11 @@ class GitHubIssuesClient:
         if r.status_code >= 500 or r.status_code == 429:
             raise RemoteTimeout(f"{method} {path} returned {r.status_code}")
         if r.status_code >= 400:
-            raise RemoteRejected(f"{method} {path} returned {r.status_code}: {r.text[:200]}")
+            raise RemoteRejected(f"{method} {path} returned {r.status_code}: {self._redact(r.text[:200])}")
         return r
+
+    def _redact(self, text: str) -> str:
+        return text.replace(self._token, "[redacted]") if self._token else text
 
 
 # --- connections --------------------------------------------------------------------------------------------
@@ -131,8 +160,7 @@ def create_connection(db: Session, p: Principal, *, name: str, base_url: str, re
         raise ValidationFailed("repo must look like owner/name")
     if urlparse(base_url).scheme not in ("http", "https"):
         raise ValidationFailed("base URL must be http or https")
-    if not loopback(base_url):
-        raise ValidationFailed(LIVE_REFUSAL)
+    profile = target_profile(base_url, repo)
     if not token.strip():
         raise ValidationFailed("a token is required")
     require_unique_name(db, p.organization_id, name.strip()[:120])
@@ -141,7 +169,7 @@ def create_connection(db: Session, p: Principal, *, name: str, base_url: str, re
         kind="github_issues",
         name=name.strip()[:120],
         status="configured",
-        config={"base_url": base_url.rstrip("/"), "repo": repo, "target": "loopback"},
+        config={"base_url": base_url.rstrip("/"), "repo": repo, "target": profile},
         secret_encrypted=encrypt_secret(token.strip()),
         created_by_user_id=p.user_id,
     )
@@ -222,6 +250,9 @@ def deliver(db: Session, msg: OutboxMessage, **kw: Any) -> str:
         gh = client_for(c, **kw)
         found = gh.find_by_marker(key) if ext.get("status") == "unknown" else None
         remote = found or gh.create_issue(marker=key, title=msg.payload["title"], body=msg.payload["body"])
+    except ValidationFailed as exc:  # the target is no longer permitted: refuse before any network call
+        msg.status, ext = "failed", {**ext, "status": "not_sent", "error": str(exc)}
+        _mark(c, False, str(exc))
     except RemoteRejected as exc:
         msg.status, ext = "failed", {**ext, "status": "rejected", "error": str(exc)}
         _mark(c, False, str(exc))
