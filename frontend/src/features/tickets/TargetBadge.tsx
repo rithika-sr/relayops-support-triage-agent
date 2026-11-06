@@ -15,7 +15,7 @@ export function TargetBadge({ target }: { target?: Target }) {
   if (target.state === "met") return <Badge tone="ok">responded in target</Badge>;
   if (target.state === "missed") return <Badge tone="danger">responded late</Badge>;
   const secs = target.due_at ? (new Date(target.due_at).getTime() - now) / 1000 : 0;
-  const tone = secs < 0 ? "danger" : secs < 4 * 3600 ? "amber" : "neutral";
+  const tone = secs < 0 ? "danger" : secs < 4 * 3600 ? "warn" : "neutral";
   return (
     <Badge tone={tone} title={`${target.policy.hours}h first-response target (${target.policy.basis}), policy ${target.policy.policy_version}`}>
       {countdown(target.due_at, now)}

@@ -23,11 +23,11 @@ function IssuePanel({ id }: { id: string }) {
   const { issue: i, tickets, distinct_accounts } = q.data!;
   return (
     <Card title={`${i.key}: ${i.title}`}>
-      <div className="flex flex-wrap gap-1"><StatusBadge status={i.status} /><Badge>{i.kind}</Badge><Badge>{i.component}</Badge>{i.origin === "local_handoff" ? <Badge tone="teal">local handoff</Badge> : null}</div>
+      <div className="flex flex-wrap gap-1"><StatusBadge status={i.status} /><Badge>{i.kind}</Badge><Badge>{i.component}</Badge>{i.origin === "local_handoff" ? <Badge tone="accent">local handoff</Badge> : null}</div>
       <p className="mt-2 text-sm">{i.description}</p>
       <p className="mt-1 text-xs text-muted">Affected {i.affected_versions.join(", ") || "n/a"}{i.fixed_in_version ? ` · fixed in ${i.fixed_in_version}` : ""} · signature {i.error_signature ?? "—"} · owner {i.owner_team}</p>
       <h3 className="mt-3 text-sm font-semibold">Linked tickets ({tickets.length}, {distinct_accounts} accounts)</h3>
-      {tickets.length ? <ul className="text-sm">{tickets.map((t) => <li key={t.id}>{t.historical ? <span className="text-muted">#{t.number} {t.subject}</span> : <Link className="text-teal-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number} {t.subject}</Link>} <Badge>{label(t.link_kind)}</Badge>{t.historical ? <Badge>historical</Badge> : null}</li>)}</ul> : <p className="text-sm text-muted">None.</p>}
+      {tickets.length ? <ul className="text-sm">{tickets.map((t) => <li key={t.id}>{t.historical ? <span className="text-muted">#{t.number} {t.subject}</span> : <Link className="text-accent-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number} {t.subject}</Link>} <Badge>{label(t.link_kind)}</Badge>{t.historical ? <Badge>historical</Badge> : null}</li>)}</ul> : <p className="text-sm text-muted">None.</p>}
     </Card>
   );
 }
@@ -53,9 +53,9 @@ export function EngineeringPage() {
                 {issues.length === 0 ? <p className="px-1 text-xs text-muted">None</p> : (
                   <ul className="flex flex-col gap-2">{issues.map((i) => (
                     <li key={i.id}>
-                      <button onClick={() => setOpen(i.id)} aria-pressed={open === i.id} className={`w-full rounded-md border px-2.5 py-2 text-left text-sm ${open === i.id ? "border-teal-600 bg-teal-50" : "border-line bg-white hover:bg-paper"}`}>
+                      <button onClick={() => setOpen(i.id)} aria-pressed={open === i.id} className={`w-full rounded-md border px-2.5 py-2 text-left text-sm ${open === i.id ? "border-accent-600 bg-accent-50" : "border-line bg-white hover:bg-paper"}`}>
                         <span className="font-mono text-xs text-muted">{i.key}</span> <span className="font-medium">{i.title}</span>
-                        <span className="mt-1 flex flex-wrap gap-1"><Badge>{i.component}</Badge>{i.kind === "feature" ? <Badge tone="teal">feature</Badge> : null}{i.affected_versions.map((v) => <Badge key={v}>v{v}</Badge>)}{i.linked_tickets ? <Badge tone="amber">{i.linked_tickets} tickets</Badge> : null}</span>
+                        <span className="mt-1 flex flex-wrap gap-1"><Badge>{i.component}</Badge>{i.kind === "feature" ? <Badge tone="accent">feature</Badge> : null}{i.affected_versions.map((v) => <Badge key={v}>v{v}</Badge>)}{i.linked_tickets ? <Badge tone="warn">{i.linked_tickets} tickets</Badge> : null}</span>
                       </button>
                     </li>
                   ))}</ul>

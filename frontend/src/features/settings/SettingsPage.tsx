@@ -35,7 +35,7 @@ function Admin() {
         {invite.error ? <Notice tone="danger">{invite.error.detail}</Notice> : null}
       </Card>
       <Card title="Read-only API tokens (MCP scope)">
-        <Notice tone="amber">The MCP read endpoint is deferred in this alpha: tokens can be created and revoked and are rejected by every REST endpoint, but no MCP server is exposed yet.</Notice>
+        <Notice tone="warn">The MCP read endpoint is deferred in this alpha: tokens can be created and revoked and are rejected by every REST endpoint, but no MCP server is exposed yet.</Notice>
         <ul className="mt-2 text-sm">{tokens.data?.map((t) => <li key={t.id} className="flex items-center gap-2">{t.name} <Badge>{t.scopes.join(",")}</Badge><span className="text-xs text-muted">{fmtDate(t.created_at)}</span>{t.revoked_at ? <Badge tone="danger">revoked</Badge> : <Button variant="danger" onClick={() => revoke.mutate(t.id)}>Revoke</Button>}</li>)}</ul>
         <form className="mt-2 flex gap-2" onSubmit={(e) => { e.preventDefault(); mkTok.mutate(); }}><Input aria-label="Token name" placeholder="token name" value={tokName} onChange={(e) => setTokName(e.target.value)} /><Button type="submit" disabled={!tokName} busy={mkTok.isPending}>Create</Button></form>
         {mkTok.data ? <Notice tone="ok">Token (shown once): <Mono>{mkTok.data.token}</Mono></Notice> : null}
@@ -58,7 +58,7 @@ export function SettingsPage() {
           {health.isLoading ? <Loading /> : health.error ? <ErrorState error={health.error} /> : (
             <dl className="grid grid-cols-[10rem_1fr] gap-y-1 text-sm">
               <dt className="text-muted">Database</dt><dd>{h!.database} {h!.pgvector ? `(pgvector ${h!.pgvector})` : ""}</dd>
-              <dt className="text-muted">Provider</dt><dd>{h!.provider === "fixture" ? <Badge tone="danger">fixture (tests only)</Badge> : <Badge tone="teal">ollama (local)</Badge>}</dd>
+              <dt className="text-muted">Provider</dt><dd>{h!.provider === "fixture" ? <Badge tone="danger">fixture (tests only)</Badge> : <Badge tone="accent">ollama (local)</Badge>}</dd>
               <dt className="text-muted">Ollama</dt><dd>{h!.ollama.reachable ? <Badge tone="ok">reachable</Badge> : <Badge tone="danger">unavailable</Badge>} {h!.ollama.error ?? h!.ollama.note ?? ""}</dd>
               <dt className="text-muted">Chat model</dt><dd>{h!.ollama.chat_model ?? "—"} {h!.ollama.chat_model_present === false ? <Badge tone="danger">not installed</Badge> : null}</dd>
               <dt className="text-muted">Embedding model</dt><dd>{h!.ollama.embed_model ?? "—"} ({h!.embedding_dim}-d) {h!.ollama.embed_model_present === false ? <Badge tone="danger">not installed</Badge> : null}</dd>

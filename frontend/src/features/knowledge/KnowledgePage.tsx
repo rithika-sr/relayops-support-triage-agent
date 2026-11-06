@@ -66,13 +66,13 @@ function Inspector({ accounts }: { accounts?: Account[] }) {
       </form>
       <p className="text-xs text-muted">All modes share one authorization and currency filter. Lexical uses PostgreSQL ts_rank_cd (not BM25); dense uses exact cosine over local embeddings; scores include an authority boost (policy &gt; article &gt; historical case).</p>
       {m.error ? <ErrorState error={m.error} /> : null}
-      {m.data?.dense_error ? <Notice tone="amber">Dense retrieval unavailable: {m.data.dense_error}</Notice> : null}
+      {m.data?.dense_error ? <Notice tone="warn">Dense retrieval unavailable: {m.data.dense_error}</Notice> : null}
       {m.data ? (m.data.results.length === 0 ? <Empty title="No authorized current passages matched" /> : (
         <ol className="flex flex-col gap-2">
           {m.data.results.map((h, i) => (
             <li key={h.chunk_id} className="rounded-md border border-line bg-white px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center gap-1"><span className="font-mono text-xs">{i + 1}.</span><span className="font-medium">{h.title}</span>{h.heading ? <span className="text-muted">/ {h.heading}</span> : null}
-                <Badge>{h.kind}</Badge><Badge tone={h.visibility === "public" ? "teal" : "ink"}>{h.visibility}</Badge><span className="text-xs text-muted">v{h.version} · score {h.score.toFixed(4)} · {Object.entries(h.ranks).map(([k, v]) => `${k} #${v}`).join(", ")}</span></div>
+                <Badge>{h.kind}</Badge><Badge tone={h.visibility === "public" ? "accent" : "ink"}>{h.visibility}</Badge><span className="text-xs text-muted">v{h.version} · score {h.score.toFixed(4)} · {Object.entries(h.ranks).map(([k, v]) => `${k} #${v}`).join(", ")}</span></div>
               <p className="mt-1 line-clamp-3 text-xs text-muted">{h.text}</p>
             </li>
           ))}
@@ -95,7 +95,7 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const current = versions.find((v) => v.version === d.current_version);
   return (
     <Card title={d.title} actions={<Button variant="ghost" onClick={onClose}>Close</Button>}>
-      <div className="flex flex-wrap gap-1 text-xs"><Badge>{d.kind}</Badge><Badge tone={d.visibility === "public" ? "teal" : "ink"}>{d.visibility}</Badge><StatusBadge status={d.status} />{d.component ? <Badge>{d.component}</Badge> : null}{d.customer_account_id ? <Badge tone="amber">account-scoped</Badge> : null}</div>
+      <div className="flex flex-wrap gap-1 text-xs"><Badge>{d.kind}</Badge><Badge tone={d.visibility === "public" ? "accent" : "ink"}>{d.visibility}</Badge><StatusBadge status={d.status} />{d.component ? <Badge>{d.component}</Badge> : null}{d.customer_account_id ? <Badge tone="warn">account-scoped</Badge> : null}</div>
       <p className="mt-2 text-xs text-muted">valid {fmtDate(d.valid_from)} → {d.valid_to ? fmtDate(d.valid_to) : "open"} · hash <Mono>{shortHash(d.content_hash)}</Mono></p>
       <div className="mt-2 flex flex-wrap gap-2">
         {d.status !== "current" ? <Button onClick={() => status.mutate("current")}>Mark current</Button> : <Button onClick={() => status.mutate("superseded")}>Mark superseded</Button>}
@@ -121,7 +121,7 @@ export function KnowledgePage() {
       <PageHeader title="Knowledge" subtitle="Versioned, scoped sources. Generated drafts are never indexed as knowledge automatically." />
       <div role="tablist" className="mb-4 flex gap-1 border-b border-line">
         {(["library", "ingest", "inspect"] as const).map((k) => (
-          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-teal-600 font-medium" : "border-transparent text-muted"}`}>
+          <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-accent-600 font-medium" : "border-transparent text-muted"}`}>
             {k === "library" ? "Library" : k === "ingest" ? "Ingest" : "Retrieval inspector"}
           </button>
         ))}
@@ -138,9 +138,9 @@ export function KnowledgePage() {
               <ul className="divide-y divide-line rounded-lg border border-line bg-card">
                 {docs.data!.map((d) => (
                   <li key={d.id}>
-                    <button onClick={() => setOpen(d.id)} className={`flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-paper ${open === d.id ? "bg-teal-50" : ""}`}>
+                    <button onClick={() => setOpen(d.id)} className={`flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-paper ${open === d.id ? "bg-accent-50" : ""}`}>
                       <span className="min-w-0"><span className="font-medium">{d.title}</span> <span className="text-xs text-muted">v{d.current_version} · {d.slug}</span></span>
-                      <span className="flex flex-wrap gap-1"><Badge>{d.kind}</Badge><Badge tone={d.visibility === "public" ? "teal" : "ink"}>{d.visibility}</Badge>{d.status !== "current" ? <StatusBadge status={d.status} /> : null}</span>
+                      <span className="flex flex-wrap gap-1"><Badge>{d.kind}</Badge><Badge tone={d.visibility === "public" ? "accent" : "ink"}>{d.visibility}</Badge>{d.status !== "current" ? <StatusBadge status={d.status} /> : null}</span>
                     </button>
                   </li>
                 ))}

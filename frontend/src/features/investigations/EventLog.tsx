@@ -26,12 +26,12 @@ function describe(e: RunEvent): string {
   }
 }
 
-const TONE: Record<string, "teal" | "amber" | "danger" | "ok" | "neutral"> = {
-  model_call: "teal",
+const TONE: Record<string, "accent" | "warn" | "danger" | "ok" | "neutral"> = {
+  model_call: "accent",
   tool_call: "neutral",
   tool_result: "neutral",
-  awaiting_review: "amber",
-  proposal_created: "amber",
+  awaiting_review: "warn",
+  proposal_created: "warn",
   action_result: "ok",
   run_failed: "danger",
   model_unavailable: "danger",
@@ -50,7 +50,7 @@ export function EventLog({ events }: { events: RunEvent[] }) {
             <Badge tone={TONE[e.kind] ?? "neutral"}>{label(e.kind)}</Badge>
             {e.node ? <span className="ml-1 text-xs text-muted">{e.node}</span> : null}
             <span className="ml-2">{describe(e)}</span>
-            {"replayed_from_seq" in e.payload ? <span className="ml-1 text-xs text-amber-700">(recorded #{String(e.payload.replayed_from_seq)})</span> : null}
+            {"replayed_from_seq" in e.payload ? <span className="ml-1 text-xs text-warn-700">(recorded #{String(e.payload.replayed_from_seq)})</span> : null}
           </span>
         </li>
       ))}

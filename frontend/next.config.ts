@@ -6,6 +6,8 @@ const apiOrigin = process.env.RELAYOPS_API_INTERNAL_URL ?? "http://127.0.0.1:802
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Do not generate AI-agent instruction files into the source tree.
+  agentRules: false,
   output: "standalone",
   turbopack: {
     rules: {

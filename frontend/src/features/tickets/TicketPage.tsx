@@ -4,192 +4,203 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Badge, Button, Card, Empty, ErrorState, Field, Loading, Mono, Notice, Select, StatusBadge, Textarea } from "@/components/ui";
+import { Badge, Breadcrumbs, Button, ButtonLink, Card, Empty, ErrorState, Field, Mono, Notice, Select, Skeleton, StatusBadge, TabPanel, Tabs, Textarea, useToast } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { fmtDate, fmtDateUTC, label } from "@/lib/format";
-import type { RunDetail, RunSummary, TicketDetail, TimelineItem } from "@/lib/types";
-import { ReviewPanel } from "@/features/investigations/ReviewPanel";
+import type { RunSummary, TicketDetail, TimelineItem } from "@/lib/types";
 import { TargetBadge } from "./TargetBadge";
 
-const LANE_STYLE: Record<string, string> = {
-  customer_report: "border-l-teal-600",
-  trusted_record: "border-l-ink-700",
-  signal: "border-l-amber-700",
-  hypothesis: "border-l-danger-700 border-dashed",
-  staff: "border-l-line-strong",
+const LANE: Record<string, { title: string; cls: string }> = {
+  customer_report: { title: "Customer report", cls: "border-l-accent-600" },
+  trusted_record: { title: "Record", cls: "border-l-ink-700" },
+  signal: { title: "Computed signal", cls: "border-l-warn-700" },
+  hypothesis: { title: "Unconfirmed", cls: "border-l-danger-700" },
+  staff: { title: "Staff", cls: "border-l-line-strong" },
+};
+
+const SOURCE: Record<string, string> = {
+  portal: "Customer portal", manual: "Entered by staff", import: "Imported file", connector: "Connected system", seed: "Demo seed", unknown: "Unknown source",
 };
 
 function Timeline({ ticketId }: { ticketId: string }) {
-  const q = useQuery({ queryKey: ["timeline", ticketId], queryFn: () => api.get<{ items: TimelineItem[]; legend: Record<string, string> }>(`/tickets/${ticketId}/timeline`) });
-  if (q.isLoading) return <Loading />;
+  const q = useQuery({ queryKey: ["timeline", ticketId], queryFn: () => api.get<{ items: TimelineItem[] }>(`/tickets/${ticketId}/timeline`) });
+  if (q.isLoading) return <Skeleton />;
   if (q.error) return <ErrorState error={q.error} />;
-  const { items, legend } = q.data!;
+  if (!q.data!.items.length) return <Empty title="No timeline yet">Run an investigation to collect timestamped evidence.</Empty>;
   return (
-    <div>
-      <ul className="mb-3 flex flex-wrap gap-3 text-xs text-muted">
-        {Object.entries(legend).map(([k, v]) => <li key={k} className={`border-l-4 pl-1.5 ${LANE_STYLE[k]}`}>{v}</li>)}
-      </ul>
-      {items.length === 0 ? <Empty title="No timeline yet" /> : (
-        <ol className="flex flex-col gap-1.5">
-          {items.map((x, i) => (
-            <li key={i} className={`border-l-4 bg-white px-3 py-1.5 text-sm ${LANE_STYLE[x.lane] ?? ""}`}>
-              <span className="font-mono text-xs text-muted">{fmtDateUTC(x.at)}</span> <span>{x.label}</span>
-              {x.note ? <Badge tone="amber">{x.note}</Badge> : null}
-              <span className="ml-1 text-xs text-muted">source <Mono>{x.source}</Mono>{x.as_of ? ` · as of ${fmtDate(x.as_of)}` : ""}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
+    <ol className="flex flex-col gap-2">
+      {q.data!.items.map((x, i) => (
+        <li key={i} className={`rounded-md border border-line border-l-4 bg-card px-3 py-2 text-sm ${LANE[x.lane]?.cls ?? ""}`}>
+          <p className="text-xs text-muted">{fmtDateUTC(x.at)} · {LANE[x.lane]?.title ?? x.lane}</p>
+          <p>{x.label}</p>
+          {x.note ? <p className="text-xs text-warn-700">{x.note}</p> : null}
+        </li>
+      ))}
+    </ol>
   );
 }
 
-function PendingReview({ runId, ticketId }: { runId: string; ticketId: string }) {
-  const q = useQuery({ queryKey: ["run", runId], queryFn: () => api.get<RunDetail>(`/investigations/${runId}`) });
-  if (q.isLoading) return <Loading />;
-  if (q.error) return <ErrorState error={q.error} />;
-  const p = q.data!.proposals.find((x) => x.status === "pending_review");
-  if (!p) return null;
-  return <ReviewPanel key={p.id} proposal={p} runId={runId} ticketId={ticketId} canReview />;
-}
+interface Staff { id: string; name: string }
 
 export function TicketPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<"conversation" | "timeline">("conversation");
+  const toast = useToast();
+  const [tab, setTab] = useState("conversation");
   const [note, setNote] = useState("");
   const [playbook, setPlaybook] = useState("");
-  const q = useQuery({ queryKey: ["ticket", id], queryFn: () => api.get<TicketDetail>(`/tickets/${id}`), refetchInterval: 15_000 });
+  const q = useQuery({ queryKey: ["ticket", id], queryFn: () => api.get<TicketDetail & { ticket: { source_kind?: string; assignee_user_id?: string | null } }>(`/tickets/${id}`), refetchInterval: 15_000 });
+  const staff = useQuery({ queryKey: ["staff"], queryFn: () => api.get<Staff[]>("/staff") });
   const start = useMutation<RunSummary, ApiError>({
     mutationFn: () => api.post(`/tickets/${id}/investigations`, { playbook_key: playbook || null }),
     onSuccess: (r) => router.push(`/app/investigations/${r.id}`),
   });
   const addNote = useMutation<unknown, ApiError>({
     mutationFn: () => api.post(`/tickets/${id}/messages`, { body: note, visibility: "internal" }),
-    onSuccess: () => { setNote(""); qc.invalidateQueries({ queryKey: ["ticket", id] }); },
+    onSuccess: () => { setNote(""); toast("Internal note added"); qc.invalidateQueries({ queryKey: ["ticket", id] }); },
   });
   const patch = useMutation<unknown, ApiError, Record<string, string>>({
     mutationFn: (body) => api.patch(`/tickets/${id}`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ticket", id] }),
   });
-  if (q.isLoading) return <Loading />;
+  const assign = useMutation<unknown, ApiError, string | null>({
+    mutationFn: (uid) => api.post(`/tickets/${id}/assign`, { assignee_user_id: uid }),
+    onSuccess: () => { toast("Assignment updated"); qc.invalidateQueries({ queryKey: ["ticket", id] }); },
+  });
+  if (q.isLoading) return <Card><Skeleton lines={6} /></Card>;
   if (q.error) return <ErrorState error={q.error} retry={q.refetch} />;
   const d = q.data!;
   const t = d.ticket;
+  const customerMsgs = d.messages.filter((m) => m.visibility === "customer");
+  const notes = d.messages.filter((m) => m.visibility === "internal");
   const activeRun = d.runs?.find((r) => ["queued", "running", "executing"].includes(r.status) && r.mode === "live");
   const reviewRun = d.runs?.find((r) => r.status === "awaiting_review" && r.mode === "live");
 
   return (
-    <div className="flex flex-col gap-4">
-      <Link href="/app/inbox" className="text-sm text-teal-700 hover:underline">← Inbox</Link>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold"><span className="text-muted">#{t.number}</span> {t.subject}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-sm">
-            <StatusBadge status={t.status} /><StatusBadge status={t.priority} /><TargetBadge target={t.target} />
+    <div>
+      <Breadcrumbs items={[{ label: "Support", href: "/app/inbox" }, { label: `Ticket #${t.number}` }]} />
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">{t.subject}</h1>
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+            <StatusBadge status={t.status} />{t.priority !== "normal" ? <StatusBadge status={t.priority} /> : null}<TargetBadge target={t.target} />
             {t.restricted ? <Badge tone="danger">restricted security review</Badge> : null}
-            <span className="text-muted">rev {t.revision} · {t.component ?? "no component"} · v{t.product_version ?? "—"} {t.error_code ? `· ${t.error_code}` : ""}</span>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div>
-            <label htmlFor="pb" className="block text-xs text-muted">Playbook</label>
-            <Select id="pb" value={playbook} onChange={(e) => setPlaybook(e.target.value)} className="w-44">
-              <option value="">Auto-select</option><option value="howto">How-to resolution</option><option value="bug">Bug investigation</option><option value="feature">Feature request</option><option value="incident">Incident triage</option>
-            </Select>
-          </div>
-          <Button variant="primary" busy={start.isPending} disabled={!!activeRun} title={activeRun ? "An investigation is already running" : undefined} onClick={() => start.mutate()}>
-            Launch investigation
-          </Button>
+            <span>{t.account_name} · opened {fmtDate(t.created_at)} · {SOURCE[t.source_kind ?? "unknown"] ?? t.source_kind}</span>
+          </p>
         </div>
       </div>
-      {start.error ? <Notice tone="danger">{start.error.detail}</Notice> : null}
-      {activeRun ? <Notice tone="teal">Investigation <Link className="underline" href={`/app/investigations/${activeRun.id}`}>{activeRun.id}</Link> is {label(activeRun.status)}.</Notice> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-4">
           {reviewRun ? (
-            <Card title={<span className="flex items-center gap-2">Draft awaiting review <Badge tone="amber">pending</Badge></span>} actions={<Link className="text-sm text-teal-700 hover:underline" href={`/app/investigations/${reviewRun.id}`}>Open workspace</Link>}>
-              <PendingReview runId={reviewRun.id} ticketId={t.id} />
-            </Card>
+            <Notice tone="warn" title="A drafted response is waiting for review">
+              <Link className="font-medium underline" href={`/app/investigations/${reviewRun.id}`}>Review reply</Link>
+            </Notice>
           ) : null}
-          <div role="tablist" className="flex gap-1 border-b border-line">
-            {(["conversation", "timeline"] as const).map((k) => (
-              <button key={k} role="tab" aria-selected={tab === k} onClick={() => setTab(k)} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-teal-600 font-medium" : "border-transparent text-muted"}`}>
-                {k === "conversation" ? "Conversation" : "Evidence timeline"}
-              </button>
-            ))}
-          </div>
+          {activeRun ? <Notice tone="accent">An investigation is in progress. <Link className="underline" href={`/app/investigations/${activeRun.id}`}>Watch it</Link>.</Notice> : null}
+          <Tabs label="Ticket" value={tab} onChange={setTab} tabs={[
+            { id: "conversation", label: "Conversation", count: customerMsgs.length },
+            { id: "notes", label: "Internal notes", count: notes.length },
+            { id: "timeline", label: "Evidence timeline" },
+          ]} />
           {tab === "conversation" ? (
-            <Card>
+            <TabPanel id="conversation">
               <ol className="flex flex-col gap-3">
-                {d.messages.map((m) => (
-                  <li key={m.id} className={`rounded-lg border px-3 py-2 ${m.visibility === "internal" ? "border-amber-100 bg-amber-50" : m.author_kind === "customer" ? "border-line bg-white" : "border-teal-100 bg-teal-50"}`}>
-                    <p className="flex flex-wrap items-center gap-1 text-xs text-muted">
-                      <span className="font-medium text-text">{m.author_name ?? m.author_kind}</span>
-                      <Badge tone={m.visibility === "internal" ? "amber" : "teal"}>{m.visibility === "internal" ? "internal note" : "customer-visible"}</Badge>
-                      {m.action_id ? <Badge tone="ok">approved action <Mono>{m.action_id}</Mono></Badge> : null}
-                      {fmtDate(m.created_at)}
-                    </p>
-                    <p className="mt-1 text-sm whitespace-pre-wrap">{m.body}</p>
+                {customerMsgs.map((m) => (
+                  <li key={m.id} className={m.author_kind === "customer" ? "" : "pl-6"}>
+                    <div className={`rounded-xl border px-4 py-3 ${m.author_kind === "customer" ? "border-line bg-card" : "border-accent-100 bg-accent-50"}`}>
+                      <p className="flex flex-wrap items-center gap-2 text-[13px] text-muted">
+                        <span className="font-medium text-text">{m.author_kind === "customer" ? (m.author_name ?? "Customer") : (m.author_name ?? "Support")}</span>
+                        {m.action_id ? <Badge tone="ok">approved reply</Badge> : null}
+                        {fmtDate(m.created_at)}
+                      </p>
+                      <p className="mt-1.5 text-[15px] whitespace-pre-wrap">{m.body}</p>
+                    </div>
                   </li>
                 ))}
               </ol>
-              <form className="mt-4 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addNote.mutate(); }}>
-                <Field id="note" label="Internal note" hint="Never shown to the customer. Customer replies go through a reviewed proposal.">
-                  <Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-16" />
-                </Field>
+              <p className="mt-3 text-[13px] text-muted">Replies to the customer are drafted by an investigation and published only after review.</p>
+            </TabPanel>
+          ) : tab === "notes" ? (
+            <TabPanel id="notes">
+              <Notice tone="warn">Internal notes are never shown to the customer.</Notice>
+              <ol className="mt-3 flex flex-col gap-2">
+                {notes.map((m) => (
+                  <li key={m.id} className="rounded-lg border border-warn-100 bg-warn-50 px-4 py-2.5 text-sm">
+                    <p className="text-[13px] text-muted"><span className="font-medium text-text">{m.author_name ?? m.author_kind}</span> · {fmtDate(m.created_at)}</p>
+                    <p className="mt-1 whitespace-pre-wrap">{m.body}</p>
+                  </li>
+                ))}
+              </ol>
+              <form className="mt-3 flex flex-col gap-2" onSubmit={(e) => { e.preventDefault(); addNote.mutate(); }}>
+                <Field id="note" label="Add an internal note"><Textarea id="note" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-16" /></Field>
                 {addNote.error ? <Notice tone="danger">{addNote.error.detail}</Notice> : null}
-                <div><Button type="submit" busy={addNote.isPending} disabled={!note.trim()}>Add internal note</Button></div>
+                <div><Button type="submit" busy={addNote.isPending} disabled={!note.trim()}>Add note</Button></div>
               </form>
-            </Card>
+            </TabPanel>
           ) : (
-            <Card><Timeline ticketId={t.id} /></Card>
+            <TabPanel id="timeline"><Timeline ticketId={t.id} /></TabPanel>
           )}
         </div>
-        <div className="flex flex-col gap-4">
+
+        <aside className="flex flex-col gap-4">
+          <Card title="Next step">
+            {reviewRun ? (
+              <ButtonLink variant="primary" href={`/app/investigations/${reviewRun.id}`} className="w-full">Review reply</ButtonLink>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <label htmlFor="pb" className="text-[13px] text-muted">Investigation playbook</label>
+                <Select id="pb" value={playbook} onChange={(e) => setPlaybook(e.target.value)}>
+                  <option value="">Choose automatically</option><option value="howto">How-to answer</option><option value="bug">Bug investigation</option>
+                  <option value="feature">Feature request</option><option value="incident">Incident triage</option>
+                </Select>
+                <Button variant="primary" busy={start.isPending} disabled={!!activeRun} onClick={() => start.mutate()}
+                  title={activeRun ? "An investigation is already running" : undefined}>Investigate</Button>
+                {start.error ? <Notice tone="danger">{start.error.detail}</Notice> : null}
+              </div>
+            )}
+          </Card>
           {d.account ? (
-            <Card title="Account context">
-              <p className="font-medium">{d.account.name}</p>
-              <p className="text-sm text-muted">{d.account.plan} plan · version {d.account.product_version} · {d.account.region}</p>
-              <dl className="mt-2 grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
-                {Object.entries(d.account.entitlements).map(([k, v]) => (
-                  <div key={k} className="contents"><dt className="text-muted">{label(k)}</dt><dd>{typeof v === "boolean" ? (v ? "yes" : "no") : v.toLocaleString()}</dd></div>
+            <Card title={d.account.name}>
+              <p className="text-sm">{label(d.account.plan)} plan · version {d.account.product_version}</p>
+              <ul className="mt-2 flex flex-wrap gap-1.5">
+                {Object.entries(d.account.entitlements).filter(([, v]) => typeof v === "boolean").map(([k, v]) => (
+                  <li key={k}><Badge tone={v ? "ok" : "neutral"}>{label(k)}: {v ? "included" : "not included"}</Badge></li>
                 ))}
-              </dl>
-              {t.target?.policy.reasons ? <ul className="mt-2 list-disc pl-4 text-xs text-muted">{t.target.policy.reasons.map((r) => <li key={r}>{r}</li>)}</ul> : null}
+              </ul>
+              {t.target?.policy.reasons ? <details className="mt-2 text-[13px]"><summary className="cursor-pointer text-muted">Why this target</summary><ul className="mt-1 list-disc pl-5 text-muted">{t.target.policy.reasons.map((r) => <li key={r}>{r}</li>)}</ul></details> : null}
             </Card>
           ) : null}
-          <Card title="Status">
+          <Card title="Owner and status">
             <div className="flex flex-col gap-2">
-              <Select aria-label="Ticket status" value={t.status} onChange={(e) => patch.mutate({ status: e.target.value })}>
+              <Select aria-label="Assignee" value={t.assignee_user_id ?? ""} onChange={(e) => assign.mutate(e.target.value || null)}>
+                <option value="">Unassigned</option>{staff.data?.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+              <Select aria-label="Status" value={t.status} onChange={(e) => patch.mutate({ status: e.target.value })}>
                 {["open", "pending_review", "pending_customer", "resolved", "closed"].map((s) => <option key={s} value={s}>{label(s)}</option>)}
               </Select>
               <Select aria-label="Priority" value={t.priority} onChange={(e) => patch.mutate({ priority: e.target.value })}>
                 {["low", "normal", "high", "urgent"].map((s) => <option key={s} value={s}>{s}</option>)}
               </Select>
-              {patch.error ? <Notice tone="danger">{patch.error.detail}</Notice> : null}
+              {patch.error ?? assign.error ? <Notice tone="danger">{(patch.error ?? assign.error)!.detail}</Notice> : null}
             </div>
           </Card>
-          <Card title="Investigations">
-            {d.runs?.length ? (
-              <ul className="flex flex-col gap-1 text-sm">{d.runs.map((r) => (
-                <li key={r.id} className="flex items-center justify-between gap-2"><Link className="font-mono text-xs text-teal-700 hover:underline" href={`/app/investigations/${r.id}`}>{r.id.slice(0, 14)}…</Link><span className="flex gap-1">{r.mode !== "live" ? <Badge tone="amber">replay</Badge> : null}<StatusBadge status={r.status} /></span></li>
-              ))}</ul>
-            ) : <p className="text-sm text-muted">None yet.</p>}
+          <Card title="Links and receipts">
+            {d.issue_links?.length ? d.issue_links.map((l) => <p key={l.issue_id} className="text-sm">{l.key} · {l.title} <StatusBadge status={l.status} /></p>) : <p className="text-sm text-muted">No engineering links.</p>}
+            {d.incidents.map((i) => <p key={i.id} className="mt-1 text-sm">Incident: {i.title} <StatusBadge status={i.status} /></p>)}
+            {d.actions?.length ? (
+              <ul className="mt-2 border-t border-line pt-2 text-[13px] text-muted">
+                {d.actions.map((a) => <li key={a.id}>{label(a.kind)} · {a.status} · {fmtDate(a.created_at)}</li>)}
+              </ul>
+            ) : null}
           </Card>
-          <Card title="Action receipts">
-            {d.actions?.length ? d.actions.map((a) => (
-              <div key={a.id} className="mb-2 text-sm"><StatusBadge status={a.status} /> {label(a.kind)} <span className="text-xs text-muted">({a.adapter}, {fmtDate(a.created_at)})</span>
-                {a.receipt.engineering_issue_key ? <p className="text-xs">Engineering: {String(a.receipt.engineering_issue_key)}</p> : null}</div>
-            )) : <p className="text-sm text-muted">No approved actions yet. Drafts never change the ticket by themselves.</p>}
-          </Card>
-          <Card title="Engineering and incidents">
-            {d.issue_links?.length ? d.issue_links.map((l) => <p key={l.issue_id} className="text-sm"><Badge>{l.link_kind}</Badge> {l.key} {l.title} <StatusBadge status={l.status} /></p>) : <p className="text-sm text-muted">No linked issues.</p>}
-            {d.incidents.map((i) => <p key={i.id} className="mt-1 text-sm"><Badge tone="amber">incident</Badge> {i.title} <StatusBadge status={i.status} /></p>)}
-          </Card>
-        </div>
+          <details className="text-[13px] text-muted">
+            <summary className="cursor-pointer">Record details</summary>
+            <p className="mt-1">Ticket <Mono>{t.id}</Mono> · revision {t.revision} · {t.component ?? "no area"} · version {t.product_version ?? "—"}{t.error_code ? ` · ${t.error_code}` : ""}</p>
+            <p className="mt-1">Investigations: {d.runs?.map((r) => <Link key={r.id} className="mr-1 underline" href={`/app/investigations/${r.id}`}>{label(r.status)}</Link>)}</p>
+          </details>
+        </aside>
       </div>
     </div>
   );

@@ -55,6 +55,10 @@ def ticket(t: Ticket, p: Principal, account: CustomerAccount | None = None) -> d
             "tags": t.tags,
             "is_historical": t.is_historical,
             "external_event_id": t.external_event_id,
+            "assignee_user_id": t.assignee_user_id,
+            "data_class": t.data_class,
+            "source_kind": t.source_kind,
+            "source_system": t.source_system,
         }
     return out
 

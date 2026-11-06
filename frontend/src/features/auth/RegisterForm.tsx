@@ -39,12 +39,12 @@ export function RegisterForm() {
   return (
     <AuthFrame
       title={invite ? "Accept your invitation" : "Create an organization"}
-      footer={<>Already have an account? <Link className="font-medium text-teal-700 underline" href="/login">Sign in</Link></>}
+      footer={<>Already have an account? <Link className="font-medium text-accent-700 underline" href="/login">Sign in</Link></>}
     >
       <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
         {error && !error.errors ? <Notice tone="danger">{error.detail}</Notice> : null}
         {invite ? (
-          <Notice tone="teal">You were invited to a customer account. Your email comes from the invitation.</Notice>
+          <Notice tone="accent">You were invited to a customer account. Your email comes from the invitation.</Notice>
         ) : (
           <p className="text-sm text-muted">You become the admin of a new, empty organization. Joining an existing organization requires an invitation.</p>
         )}

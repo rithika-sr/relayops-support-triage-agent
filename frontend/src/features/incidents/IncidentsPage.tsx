@@ -21,14 +21,14 @@ function CandidateCard({ c, window, incidents }: { c: Candidate; window: number;
   });
   const allLinked = c.tickets.every((t) => t.incident_id);
   return (
-    <Card title={<span className="flex flex-wrap items-center gap-1.5"><Badge tone="amber">candidate</Badge><Mono>{c.signature}</Mono> on {c.component} v{c.product_version}</span>}>
+    <Card title={<span className="flex flex-wrap items-center gap-1.5"><Badge tone="warn">candidate</Badge><Mono>{c.signature}</Mono> on {c.component} v{c.product_version}</span>}>
       <dl className="grid grid-cols-3 gap-2 text-sm">
         <div><dt className="text-xs text-muted">Tickets</dt><dd className="text-lg font-semibold">{c.ticket_count}</dd></div>
         <div><dt className="text-xs text-muted">Distinct accounts</dt><dd className="text-lg font-semibold">{c.distinct_accounts}</dd></div>
         <div><dt className="text-xs text-muted">Window</dt><dd className="text-xs">{fmtDate(c.first_reported_at)} → {fmtDate(c.last_reported_at)}</dd></div>
       </dl>
       <p className="mt-1 text-xs text-muted">Accounts: {c.accounts.join(", ")} · {c.method}</p>
-      <ul className="mt-2 text-sm">{c.tickets.map((t) => <li key={t.id}><Link className="text-teal-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number}</Link> {t.subject} <span className="text-xs text-muted">({t.account})</span>{t.incident_id ? <Badge tone="ok">linked</Badge> : null}</li>)}</ul>
+      <ul className="mt-2 text-sm">{c.tickets.map((t) => <li key={t.id}><Link className="text-accent-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number}</Link> {t.subject} <span className="text-xs text-muted">({t.account})</span>{t.incident_id ? <Badge tone="ok">linked</Badge> : null}</li>)}</ul>
       {allLinked ? <Notice tone="ok">All tickets already linked to a reviewed incident.</Notice> : (
         <form className="mt-3 grid gap-2 sm:grid-cols-3" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
           <Select aria-label="Link to" value={target} onChange={(e) => setTarget(e.target.value)} className="sm:col-span-3">
@@ -40,7 +40,7 @@ function CandidateCard({ c, window, incidents }: { c: Candidate; window: number;
             <Select aria-label="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)}>{["P1", "P2", "P3", "P4"].map((s) => <option key={s}>{s}</option>)}</Select>
           </> : null}
           <div className="sm:col-span-3 flex items-center gap-2">
-            <Button variant="amber" type="submit" busy={m.isPending}>Confirm after review</Button>
+            <Button variant="warn" type="submit" busy={m.isPending}>Confirm after review</Button>
             <span className="text-xs text-muted">Confirmation records you as reviewer for exactly these {c.ticket_count} tickets. It is not published to customers.</span>
           </div>
           {m.error ? <Notice tone="danger">{m.error.detail}</Notice> : null}
@@ -69,7 +69,7 @@ function IncidentPanel({ id }: { id: string }) {
   const pub = summary ?? i.public_summary ?? "";
   return (
     <Card title={i.title}>
-      <div className="flex flex-wrap gap-1"><StatusBadge status={i.status} /><Badge>{i.severity}</Badge><Badge>{i.component}</Badge><Badge tone={i.public_visible ? "teal" : "ink"}>{i.public_visible ? "published to customers" : "staff only"}</Badge></div>
+      <div className="flex flex-wrap gap-1"><StatusBadge status={i.status} /><Badge>{i.severity}</Badge><Badge>{i.component}</Badge><Badge tone={i.public_visible ? "accent" : "ink"}>{i.public_visible ? "published to customers" : "staff only"}</Badge></div>
       <p className="mt-2 text-sm">{i.linked_tickets} linked tickets · {i.affected_accounts} affected accounts (distinct) · started {fmtDate(i.started_at)}</p>
       {i.internal_notes ? <p className="mt-1 text-xs text-muted">Internal: {i.internal_notes}</p> : null}
       <div className="mt-3 flex flex-wrap gap-2">
@@ -89,10 +89,10 @@ function IncidentPanel({ id }: { id: string }) {
       {patch.error ? <Notice tone="danger">{patch.error.detail}</Notice> : null}
       {draft.error ? <Notice tone="danger">{draft.error.detail}</Notice> : null}
       <h3 className="mt-4 text-sm font-semibold">Tickets</h3>
-      <ul className="text-sm">{tickets.map((t) => <li key={t.id}><Link className="text-teal-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number}</Link> {t.subject} <span className="text-xs text-muted">({t.account})</span></li>)}</ul>
+      <ul className="text-sm">{tickets.map((t) => <li key={t.id}><Link className="text-accent-700 hover:underline" href={`/app/tickets/${t.id}`}>#{t.number}</Link> {t.subject} <span className="text-xs text-muted">({t.account})</span></li>)}</ul>
       <h3 className="mt-4 text-sm font-semibold">Evidence timeline</h3>
       <ol className="mt-1 flex flex-col gap-1 text-sm">{timeline.map((x, n) => (
-        <li key={n} className="border-l-4 border-l-line-strong pl-2"><span className="font-mono text-xs text-muted">{fmtDateUTC(x.at)}</span> <Badge>{label(x.lane)}</Badge> {x.label}{x.note ? <span className="ml-1 text-xs text-amber-700">({x.note})</span> : null}</li>
+        <li key={n} className="border-l-4 border-l-line-strong pl-2"><span className="font-mono text-xs text-muted">{fmtDateUTC(x.at)}</span> <Badge>{label(x.lane)}</Badge> {x.label}{x.note ? <span className="ml-1 text-xs text-warn-700">({x.note})</span> : null}</li>
       ))}</ol>
     </Card>
   );
@@ -119,9 +119,9 @@ export function IncidentsPage() {
           <h2 className="font-semibold">Reviewed incidents</h2>
           {incs.isLoading ? <Loading /> : incs.error ? <ErrorState error={incs.error} /> : incs.data!.length === 0 ? <Empty title="No incidents" /> : (
             <ul className="divide-y divide-line rounded-lg border border-line bg-card">{incs.data!.map((i) => (
-              <li key={i.id}><button onClick={() => setOpen(i.id)} aria-pressed={open === i.id} className={`flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-paper ${open === i.id ? "bg-teal-50" : ""}`}>
+              <li key={i.id}><button onClick={() => setOpen(i.id)} aria-pressed={open === i.id} className={`flex w-full flex-wrap items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-paper ${open === i.id ? "bg-accent-50" : ""}`}>
                 <span><span className="font-medium">{i.title}</span> <span className="text-xs text-muted">{i.linked_tickets} tickets · {i.affected_accounts} accounts</span></span>
-                <span className="flex gap-1"><StatusBadge status={i.status} /><Badge tone={i.public_visible ? "teal" : "ink"}>{i.public_visible ? "public" : "staff only"}</Badge></span>
+                <span className="flex gap-1"><StatusBadge status={i.status} /><Badge tone={i.public_visible ? "accent" : "ink"}>{i.public_visible ? "public" : "staff only"}</Badge></span>
               </button></li>
             ))}</ul>
           )}

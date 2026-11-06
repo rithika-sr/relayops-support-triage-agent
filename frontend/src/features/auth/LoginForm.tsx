@@ -34,7 +34,7 @@ export function LoginForm() {
   }
 
   return (
-    <AuthFrame title="Sign in" footer={<>New here? <Link className="font-medium text-teal-700 underline" href="/register">Create an organization</Link></>}>
+    <AuthFrame title="Sign in" footer={<>New here? <Link className="font-medium text-accent-700 underline" href="/register">Create an organization</Link></>}>
       <form onSubmit={submit} className="flex flex-col gap-3" noValidate>
         {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field id="email" label="Email">

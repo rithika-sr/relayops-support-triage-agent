@@ -19,7 +19,7 @@ export function OverviewPage() {
       <PageHeader title="Overview" subtitle={`Computed from current records as of ${fmtDate(o.as_of)}`} />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Open tickets" value={o.open_tickets} />
-        <Stat label="Awaiting review" value={o.pending_review_proposals} tone={o.pending_review_proposals ? "amber" : undefined} hint="draft proposals" />
+        <Stat label="Awaiting review" value={o.pending_review_proposals} tone={o.pending_review_proposals ? "warn" : undefined} hint="draft proposals" />
         <Stat label="Targets breached" value={o.breached_targets} tone={o.breached_targets ? "danger" : undefined} hint="no first response yet" />
         <Stat label="Due within 4h" value={o.due_within_4h} />
         <Stat label="Restricted open" value={o.restricted_open} hint="security review" />
@@ -65,7 +65,7 @@ export function OverviewPage() {
             ))}
           </dl>
         </Card>
-        <Card title="Investigations by status" actions={<Link className="text-sm text-teal-700 hover:underline" href="/app/investigations">All runs</Link>}>
+        <Card title="Investigations by status" actions={<Link className="text-sm text-accent-700 hover:underline" href="/app/investigations">All runs</Link>}>
           {Object.keys(o.runs_by_status).length === 0 ? <Empty title="No investigations yet">Open a ticket from the inbox and start one.</Empty> : (
             <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
               {Object.entries(o.runs_by_status).map(([s, n]) => (

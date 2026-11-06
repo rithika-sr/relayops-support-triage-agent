@@ -50,9 +50,9 @@ function Detail({ id }: { id: string }) {
         <Select aria-label="Version" value={v.version} onChange={(e) => setView(Number(e.target.value))} className="w-40">{versions.map((x) => <option key={x.version} value={x.version}>v{x.version} · {x.verification_status}</option>)}</Select>
         <a className="inline-flex items-center rounded-md border border-line-strong px-3 py-1.5 text-sm" href={`/api/artifacts/${a.id}/export?format=md`}>Export Markdown</a>
         <a className="inline-flex items-center rounded-md border border-line-strong px-3 py-1.5 text-sm" href={`/api/artifacts/${a.id}/export?format=json`}>Export JSON</a>
-        {a.run_id ? <Link className="text-sm text-teal-700 hover:underline" href={`/app/investigations/${a.run_id}`}>Open investigation</Link> : null}
+        {a.run_id ? <Link className="text-sm text-accent-700 hover:underline" href={`/app/investigations/${a.run_id}`}>Open investigation</Link> : null}
       </div>
-      {a.kind === "customer_reply" ? <Notice tone="teal">Reply drafts are edited in the review panel so each edit becomes a new proposal version and is re-verified.</Notice> : null}
+      {a.kind === "customer_reply" ? <Notice tone="accent">Reply drafts are edited in the review panel so each edit becomes a new proposal version and is re-verified.</Notice> : null}
       {a.review_status === "approved" ? <Notice tone="ok">Approved artifacts are immutable.</Notice> : null}
       <ContentEditor key={`${v.version}`} initial={v.content} editable={editable && isLatest} nextVersion={a.current_version + 1}
         saving={edit.isPending} revalidating={reval.isPending} onSave={(c) => edit.mutate(c)} onRevalidate={() => reval.mutate()} />
@@ -76,7 +76,7 @@ export function ArtifactsPage() {
       {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : q.data!.length === 0 ? <Empty title="No artifacts yet">Investigations and incident summaries create them.</Empty> : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           <ul className="divide-y divide-line self-start rounded-lg border border-line bg-card">{q.data!.map((a) => (
-            <li key={a.id}><button onClick={() => setSel(a.id)} aria-pressed={sel === a.id} className={`w-full px-3 py-2 text-left text-sm hover:bg-paper ${sel === a.id ? "bg-teal-50" : ""}`}>
+            <li key={a.id}><button onClick={() => setSel(a.id)} aria-pressed={sel === a.id} className={`w-full px-3 py-2 text-left text-sm hover:bg-paper ${sel === a.id ? "bg-accent-50" : ""}`}>
               <p className="font-medium">{a.title}</p>
               <p className="mt-0.5 flex flex-wrap gap-1"><Badge>{label(a.kind)}</Badge><Badge>v{a.current_version}</Badge><StatusBadge status={a.verification_status} /><StatusBadge status={a.review_status} /></p>
             </button></li>

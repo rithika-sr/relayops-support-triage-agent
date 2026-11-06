@@ -36,11 +36,11 @@ export default function Landing() {
           <Brand dark />
           <nav className="flex items-center gap-2 text-sm">
             <Link href="/login" className="rounded-md px-3 py-1.5 text-ink-300 hover:text-white">Sign in</Link>
-            <Link href="/register" className="rounded-md bg-teal-700 px-3 py-1.5 font-medium text-white hover:bg-teal-600">Create organization</Link>
+            <Link href="/register" className="rounded-md bg-accent-700 px-3 py-1.5 font-medium text-white hover:bg-accent-600">Create organization</Link>
           </nav>
         </div>
         <div className="mx-auto max-w-6xl px-4 pt-10 pb-16">
-          <p className="text-sm font-medium tracking-wide text-teal-100 uppercase">Support to engineering, with receipts</p>
+          <p className="text-sm font-medium tracking-wide text-accent-100 uppercase">Support to engineering, with receipts</p>
           <h1 className="mt-3 max-w-3xl text-3xl leading-tight font-semibold text-white sm:text-5xl">
             Turn a customer report into a reviewed answer or a complete engineering handoff.
           </h1>
@@ -49,7 +49,7 @@ export default function Landing() {
             human, and records exactly what was approved and done.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link href="/login" className="rounded-md bg-teal-700 px-4 py-2 font-medium text-white hover:bg-teal-600">Sign in to the workbench</Link>
+            <Link href="/login" className="rounded-md bg-accent-700 px-4 py-2 font-medium text-white hover:bg-accent-600">Sign in to the workbench</Link>
             <Link href="/register" className="rounded-md border border-ink-700 px-4 py-2 font-medium text-white hover:bg-ink-800">Start a new organization</Link>
           </div>
         </div>
@@ -68,7 +68,7 @@ export default function Landing() {
           <ol className="mt-4 grid gap-3 text-sm sm:grid-cols-5">
             {["Customer reports in the portal", "Support launches a playbook", "Agent gathers authorized evidence", "Reviewer edits or approves the exact draft", "Customer sees the approved reply"].map((s, i) => (
               <li key={s} className="flex gap-2">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-semibold text-amber-700">{i + 1}</span>
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-warn-100 text-xs font-semibold text-warn-700">{i + 1}</span>
                 <span>{s}</span>
               </li>
             ))}

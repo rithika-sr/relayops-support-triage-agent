@@ -46,8 +46,8 @@ export function InvestigationsList() {
             <tbody className="divide-y divide-line">
               {q.data!.items.map((r) => (
                 <tr key={r.id} className="hover:bg-paper">
-                  <td className="px-3 py-2"><Link className="font-mono text-xs text-teal-700 hover:underline" href={`/app/investigations/${r.id}`}>{r.id}</Link>
-                    <div className="mt-0.5 flex gap-1"><Badge>{r.playbook}</Badge>{r.mode === "recorded_replay" ? <Badge tone="amber">replay</Badge> : null}{r.compare_of_run_id ? <Badge tone="teal">compare</Badge> : null}</div></td>
+                  <td className="px-3 py-2"><Link className="font-mono text-xs text-accent-700 hover:underline" href={`/app/investigations/${r.id}`}>{r.id}</Link>
+                    <div className="mt-0.5 flex gap-1"><Badge>{r.playbook}</Badge>{r.mode === "recorded_replay" ? <Badge tone="warn">replay</Badge> : null}{r.compare_of_run_id ? <Badge tone="accent">compare</Badge> : null}</div></td>
                   <td className="px-3 py-2">#{r.ticket_number} {r.ticket_subject}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                   <td className="px-3 py-2">{label(r.route)}</td>

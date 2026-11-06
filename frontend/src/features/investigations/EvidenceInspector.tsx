@@ -38,15 +38,15 @@ export function EvidenceInspector({
             <button
               onClick={() => onSelect(id)}
               aria-pressed={isSel}
-              className={`w-full rounded-md border px-3 py-2 text-left text-sm ${isSel ? "border-teal-600 bg-teal-50" : "border-line bg-white hover:bg-paper"}`}
+              className={`w-full rounded-md border px-3 py-2 text-left text-sm ${isSel ? "border-accent-600 bg-accent-50" : "border-line bg-white hover:bg-paper"}`}
             >
               <div className="flex flex-wrap items-center gap-1">
                 <span className="font-mono text-xs font-semibold">{id}</span>
                 <Badge>{TYPE_LABEL[e.source_type] ?? e.source_type}</Badge>
-                <Badge tone={e.visibility === "public" ? "teal" : "ink"}>{e.visibility}</Badge>
+                <Badge tone={e.visibility === "public" ? "accent" : "ink"}>{e.visibility}</Badge>
                 {e.kind === "policy" ? <Badge tone="ok">current policy</Badge> : null}
-                {e.source_type === "case" ? <Badge tone="amber" title="Lower authority than current policy">historical</Badge> : null}
-                {cited.includes(id) ? <Badge tone="teal">cited in reply</Badge> : null}
+                {e.source_type === "case" ? <Badge tone="warn" title="Lower authority than current policy">historical</Badge> : null}
+                {cited.includes(id) ? <Badge tone="accent">cited in reply</Badge> : null}
                 {internal.includes(id) ? <Badge tone="neutral">used internally</Badge> : null}
               </div>
               <p className="mt-1 font-medium">{e.title}</p>

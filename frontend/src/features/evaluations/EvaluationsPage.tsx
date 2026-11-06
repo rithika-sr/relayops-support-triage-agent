@@ -29,7 +29,7 @@ function Detail({ id }: { id: string }) {
     <div className="flex flex-col gap-4">
       <Card title="Run metadata">
         <dl className="grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2">{Object.entries(r.metadata).map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{label(k)}</dt><dd className="truncate font-mono" title={typeof v === "object" ? JSON.stringify(v) : String(v)}>{typeof v === "object" ? JSON.stringify(v) : String(v)}</dd></div>)}</dl>
-        {r.notes ? <Notice tone="amber">{r.notes}</Notice> : null}
+        {r.notes ? <Notice tone="warn">{r.notes}</Notice> : null}
         <p className="mt-2 text-xs text-muted">Source file {r.source_path}. Unrun cases: {String(r.summary.unrun_cases ?? 0)} of {String(r.summary.total_cases ?? r.case_count)}.</p>
       </Card>
       <Card title="Baseline comparison (measured)">
@@ -79,11 +79,11 @@ export function EvaluationsPage() {
       <PageHeader title="Evaluations" subtitle="Reports produced by evals/runners with actual denominators. Unrun cases stay marked unrun." actions={<Button variant="primary" onClick={() => imp.mutate()} busy={imp.isPending}>Import reports from evals/results</Button>} />
       {imp.data ? <Notice tone="ok">Loaded {imp.data.loaded.length} report(s).{imp.data.skipped.length ? ` Skipped: ${imp.data.skipped.map((s) => `${s.file} (${s.reason})`).join(", ")}` : ""}</Notice> : null}
       {imp.error ? <Notice tone="danger">{imp.error.detail}</Notice> : null}
-      <Notice tone="amber">Human claim-support review: pending. No human annotations have been recorded; automated checks are not relabeled as human review.</Notice>
+      <Notice tone="warn">Human claim-support review: pending. No human annotations have been recorded; automated checks are not relabeled as human review.</Notice>
       {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : q.data!.length === 0 ? <div className="mt-4"><Empty title="No reports imported">Run <code>make eval-offline</code> or <code>make eval-live-smoke</code>, then import.</Empty></div> : (
         <div className="mt-4 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
           <ul className="flex flex-col gap-2 self-start">{q.data!.map((r) => (
-            <li key={r.id}><button onClick={() => setSel(r.id)} aria-pressed={sel === r.id} className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${sel === r.id ? "border-teal-600 bg-teal-50" : "border-line bg-card hover:bg-paper"}`}>
+            <li key={r.id}><button onClick={() => setSel(r.id)} aria-pressed={sel === r.id} className={`w-full rounded-lg border px-3 py-2 text-left text-sm ${sel === r.id ? "border-accent-600 bg-accent-50" : "border-line bg-card hover:bg-paper"}`}>
               <p className="font-medium">{r.report_key}</p><p className="text-xs text-muted">{r.profile} · {r.case_count} case results</p>
             </button></li>
           ))}</ul>

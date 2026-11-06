@@ -51,14 +51,14 @@ function Detail({ k }: { k: string }) {
     <div className="flex flex-col gap-4">
       <Card title={`Graph preview · ${d.playbook.name} r${d.playbook.current_revision}`}>
         <ol className="flex flex-wrap items-center gap-1 text-xs">{d.graph.nodes.map((n, i) => (
-          <li key={n.id} className="flex items-center gap-1"><span className={`rounded border px-2 py-1 ${n.kind === "human" ? "border-amber-700 bg-amber-50" : n.kind === "code" ? "border-ink-700 bg-white" : "border-teal-600 bg-teal-50"}`}>{n.label}{n.id === "investigate" ? ` ↺ ≤${d.config.max_turns}` : ""}</span>{i < d.graph.nodes.length - 1 ? <span aria-hidden>→</span> : null}</li>
+          <li key={n.id} className="flex items-center gap-1"><span className={`rounded border px-2 py-1 ${n.kind === "human" ? "border-warn-700 bg-warn-50" : n.kind === "code" ? "border-ink-700 bg-white" : "border-accent-600 bg-accent-50"}`}>{n.label}{n.id === "investigate" ? ` ↺ ≤${d.config.max_turns}` : ""}</span>{i < d.graph.nodes.length - 1 ? <span aria-hidden>→</span> : null}</li>
         ))}</ol>
         <p className="mt-2 text-xs text-muted">Tools: {d.graph.tools.join(", ")} · routes: {d.graph.routes.map(label).join(", ")}</p>
       </Card>
       <Card title="Configuration"><Editor key={d.playbook.current_revision} d={d} canEdit={me.data?.role === "admin"} /></Card>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card title="Revisions"><ul className="text-sm">{d.revisions.map((r) => <li key={r.revision}>r{r.revision} · <Mono>{shortHash(r.config_hash)}</Mono> · {fmtDate(r.created_at)}</li>)}</ul></Card>
-        <Card title="Recent runs">{d.runs.length ? <ul className="text-sm">{d.runs.map((r) => <li key={r.id}><Link className="font-mono text-xs text-teal-700 hover:underline" href={`/app/investigations/${r.id}`}>{r.id.slice(0, 14)}…</Link> <StatusBadge status={r.status} /> r{r.playbook_revision} {r.mode !== "live" ? <Badge tone="amber">replay</Badge> : null}</li>)}</ul> : <p className="text-sm text-muted">No runs yet.</p>}</Card>
+        <Card title="Recent runs">{d.runs.length ? <ul className="text-sm">{d.runs.map((r) => <li key={r.id}><Link className="font-mono text-xs text-accent-700 hover:underline" href={`/app/investigations/${r.id}`}>{r.id.slice(0, 14)}…</Link> <StatusBadge status={r.status} /> r{r.playbook_revision} {r.mode !== "live" ? <Badge tone="warn">replay</Badge> : null}</li>)}</ul> : <p className="text-sm text-muted">No runs yet.</p>}</Card>
       </div>
     </div>
   );
@@ -73,7 +73,7 @@ export function PlaybooksPage() {
       {q.isLoading ? <Loading /> : q.error ? <ErrorState error={q.error} /> : (
         <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
           <ul className="flex flex-col gap-2">{q.data!.map((p) => (
-            <li key={p.key}><button onClick={() => setSel(p.key)} aria-pressed={sel === p.key} className={`w-full rounded-lg border px-3 py-2 text-left ${sel === p.key ? "border-teal-600 bg-teal-50" : "border-line bg-card hover:bg-paper"}`}>
+            <li key={p.key}><button onClick={() => setSel(p.key)} aria-pressed={sel === p.key} className={`w-full rounded-lg border px-3 py-2 text-left ${sel === p.key ? "border-accent-600 bg-accent-50" : "border-line bg-card hover:bg-paper"}`}>
               <p className="font-medium">{p.name} <span className="text-xs text-muted">r{p.current_revision}</span></p>
               <p className="text-xs text-muted">{p.description}</p>
               <p className="mt-1 text-xs">{Object.entries(p.runs_by_status).map(([s, n]) => `${n} ${label(s)}`).join(" · ") || "no runs"}</p>

@@ -22,9 +22,9 @@ export function PortalHome() {
     <div className="flex flex-col gap-5">
       <PageHeader title="Support" subtitle={`${me.data?.customer_account?.name ?? ""} · replies from TaskFlow support appear here after review`} />
       {active.length ? (
-        <div role="status" className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm">
+        <div role="status" className="rounded-lg border border-warn-100 bg-warn-50 px-4 py-3 text-sm">
           {active.map((i) => (
-            <p key={i.id}><span className="font-medium text-amber-700">{i.title}:</span> {i.public_summary}</p>
+            <p key={i.id}><span className="font-medium text-warn-700">{i.title}:</span> {i.public_summary}</p>
           ))}
         </div>
       ) : null}
@@ -57,7 +57,7 @@ export function PortalHome() {
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {docs.data!.filter((d) => d.status === "current").map((d) => (
               <li key={d.id} className="text-sm">
-                <a className="text-teal-700 hover:underline" href={`/api/knowledge/${d.id}/versions/${d.current_version}/raw`}>{d.title}</a>
+                <a className="text-accent-700 hover:underline" href={`/api/knowledge/${d.id}/versions/${d.current_version}/raw`}>{d.title}</a>
                 <span className="ml-1 text-xs text-muted">{d.kind.replace("_", " ")}</span>
               </li>
             ))}
