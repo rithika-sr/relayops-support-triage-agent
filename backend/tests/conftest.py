@@ -26,6 +26,7 @@ from alembic.config import Config  # noqa: E402
 from sqlalchemy import create_engine, text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
+from relayops.agents import llm  # noqa: E402
 from relayops.core.config import get_settings  # noqa: E402
 from relayops.core.db import get_engine, new_session  # noqa: E402
 from relayops.models import Base  # noqa: E402
@@ -46,6 +47,9 @@ def _migrated() -> Iterator[None]:
     _ensure_database()
     cfg = Config(str(os.path.join(os.path.dirname(__file__), "..", "alembic.ini")))
     command.upgrade(cfg, "head")
+    from relayops.agents.checkpoint import ensure_checkpointer_schema
+
+    ensure_checkpointer_schema()
     yield
 
 
@@ -60,7 +64,10 @@ def _clean() -> Iterator[None]:
                 "TRUNCATE checkpoints, checkpoint_blobs, checkpoint_writes; END IF; END $$"
             )
         )
+    fixture = llm.FixtureProvider()
+    llm.set_provider(fixture)
     yield
+    llm.set_provider(None)
 
 
 @pytest.fixture
@@ -71,3 +78,10 @@ def db() -> Iterator[Session]:
         s.commit()
     finally:
         s.close()
+
+
+@pytest.fixture
+def fixture_provider() -> llm.FixtureProvider:
+    p = llm.get_provider()
+    assert isinstance(p, llm.FixtureProvider)
+    return p

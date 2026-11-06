@@ -8,6 +8,8 @@ from typing import Any
 from relayops.domain.scope import Principal
 from relayops.models import (
     CustomerAccount,
+    DocumentVersion,
+    KnowledgeDocument,
     Ticket,
     TicketMessage,
 )
@@ -67,3 +69,39 @@ def message(m: TicketMessage, author_name: str | None) -> dict[str, Any]:
         "action_id": m.action_id,
         "created_at": iso(m.created_at),
     }
+
+
+def document(d: KnowledgeDocument, v: DocumentVersion | None, version_count: int, p: Principal) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        "id": d.id,
+        "slug": d.slug,
+        "title": d.title,
+        "kind": d.kind,
+        "visibility": d.visibility,
+        "component": d.component,
+        "product_versions": d.product_versions,
+        "status": d.status,
+        "current_version": v.version if v else None,
+        "content_hash": v.content_hash if v else None,
+        "valid_from": iso(v.valid_from) if v else None,
+        "valid_to": iso(v.valid_to) if v else None,
+    }
+    if p.is_staff:
+        out |= {"customer_account_id": d.customer_account_id, "version_count": version_count}
+    return out
+
+
+def version(v: DocumentVersion, include_content: bool = True) -> dict[str, Any]:
+    out = {
+        "id": v.id,
+        "version": v.version,
+        "content_hash": v.content_hash,
+        "media_type": v.media_type,
+        "source_filename": v.source_filename,
+        "valid_from": iso(v.valid_from),
+        "valid_to": iso(v.valid_to),
+        "created_at": iso(v.created_at),
+    }
+    if include_content:
+        out["content"] = v.content
+    return out

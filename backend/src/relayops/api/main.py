@@ -7,7 +7,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from relayops.api.routers import auth, settings, tickets
+from relayops.agents.llm import ModelUnavailable
+from relayops.api.routers import auth, knowledge, settings, tickets
 from relayops.core.config import get_settings
 from relayops.core.db import get_engine
 from relayops.domain.scope import AccessDenied, Conflict, NotFound, ValidationFailed
@@ -34,6 +35,10 @@ def create_app() -> FastAPI:
     async def _cf(_: Request, exc: Conflict) -> JSONResponse:
         return JSONResponse({"detail": str(exc)}, status_code=409)
 
+    @app.exception_handler(ModelUnavailable)
+    async def _mu(_: Request, exc: ModelUnavailable) -> JSONResponse:
+        return JSONResponse({"detail": f"local model unavailable: {exc}", "code": "model_unavailable"}, status_code=503)
+
     @app.exception_handler(RequestValidationError)
     async def _rv(_: Request, exc: RequestValidationError) -> JSONResponse:
         errors = [{"field": ".".join(str(x) for x in e["loc"][1:]), "message": e["msg"]} for e in exc.errors()]
@@ -45,7 +50,7 @@ def create_app() -> FastAPI:
             c.execute(text("select 1"))
         return {"status": "ok", "env": get_settings().env}
 
-    for r in (auth.router, tickets.router, settings.router):
+    for r in (auth.router, tickets.router, knowledge.router, settings.router):
         app.include_router(r, prefix="/api")
     return app
 
