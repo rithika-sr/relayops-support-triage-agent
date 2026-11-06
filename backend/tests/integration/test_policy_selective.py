@@ -297,3 +297,43 @@ def test_bug_playbook_can_link_a_reviewed_incident_but_not_without_one(db, tmp_p
         )
     assert policy.decide(facts, restricted=False, allowed_routes=bug).route == "incident_link"
     assert policy.decide(near, restricted=False, allowed_routes=bug).route == "link_existing_issue"  # no incident
+
+
+def test_disallowed_model_route_asks_the_customer_instead_of_restricting(db, tmp_path):
+    """A vague how-to ticket must not land in the restricted specialist queue because the model picked a bad route."""
+    creds = seeded(db, tmp_path)
+
+    def script(purpose, user):
+        if purpose == "extract":
+            return {
+                "intent": "how_to",
+                "component": None,
+                "product_version": None,
+                "error_code": None,
+                "first_seen": None,
+                "summary": "vague",
+            }
+        if purpose == "investigate":
+            return {"purpose": "Enough evidence.", "action": "finish", "tool_calls": []}
+        if purpose == "propose":
+            return {
+                "route": "new_engineering_handoff",
+                "rationale": "unclear",
+                "evidence_ids": [],
+                "missing_facts": ["page_or_feature"],
+                "clarifying_questions": ["Which page?"],
+                "observations": [],
+                "hypotheses": [],
+            }
+        if purpose == "draft_reply":
+            return {"reply": "Thanks for reaching out. Which page or feature is affected?", "evidence_ids": []}
+        return {}
+
+    d = _agent_run(creds, {"subject": "Something is off", "body": "Things are not right with our account."}, script)
+    prop = d["proposals"][0]
+    assert prop["route"] == "clarification"
+    assert any("not allowed by playbook -> clarification" in o for o in prop["payload"].get("overrides", []))
+    with new_session() as s:
+        from relayops.models import Ticket
+
+        assert s.get(Ticket, d["run"]["ticket_id"]).restricted is False

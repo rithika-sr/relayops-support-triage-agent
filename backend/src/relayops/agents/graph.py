@@ -599,8 +599,11 @@ def propose(state: RunState) -> dict[str, Any]:
             overrides.append(f"security-sensitive ticket: {route} -> specialist_review")
         route = Route.SPECIALIST_REVIEW
     if route not in allowed:
-        overrides.append(f"route {route} not allowed by playbook -> specialist_review")
-        route = Route.SPECIALIST_REVIEW
+        # Ask the customer rather than escalate: specialist review restricts the ticket to the security queue,
+        # which is only right for security-sensitive reports (routed above).
+        fallback = Route.CLARIFICATION if Route.CLARIFICATION in allowed else Route.SPECIALIST_REVIEW
+        overrides.append(f"route {route} not allowed by playbook -> {fallback}")
+        route = fallback
     issue_ev = evidence.get(rp.issue_evidence_id or "")
     if route == Route.LINK_EXISTING_ISSUE:
         m = (issue_ev or {}).get("meta", {}).get("match", {})

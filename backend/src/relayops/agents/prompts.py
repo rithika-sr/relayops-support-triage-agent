@@ -41,9 +41,9 @@ the evidence. Rules:
 - new_engineering_handoff when the ticket reports a concrete failure (an error code, or a named feature failing in a
   described way) and no known issue or active incident matches it. List missing details as missing_facts; engineering
   can start without them.
-- clarification only when you cannot tell what is failing or what the customer is asking, and no record lookup
-  identifies the problem. "Required facts not yet known" alone is not a reason to ask when the records already
-  identify the problem.
+- clarification when the customer has not said what fails or what they want (no error, no feature or page named, no
+  steps) and no record lookup identifies the problem; ask for exactly those facts. When the records do identify the
+  problem, missing details are not a reason to ask.
 - Security-sensitive reports go to specialist_review.
 - Clarifying questions must ask only for facts the customer knows (steps, sizes, times, request IDs, version),
   never about internal deployments, logs, or engineering systems.
