@@ -14,7 +14,7 @@ from relayops.api.deps import DB, admin_principal, staff_principal
 from relayops.api.serializers import iso
 from relayops.domain.scope import Principal, ValidationFailed
 from relayops.models import Connection, ImportBatch
-from relayops.services import ingestion
+from relayops.services import github_connector, ingestion
 
 router = APIRouter(tags=["integrations"])
 
@@ -111,6 +111,31 @@ def create_webhook(
 @router.post("/integrations/{connection_id}/rotate-secret")
 def rotate(connection_id: str, p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, str]:
     return {"signing_secret": ingestion.rotate_secret(db, p, connection_id)}
+
+
+class GitHubConnectionBody(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    base_url: str = Field(min_length=1, max_length=300)
+    repo: str = Field(min_length=3, max_length=201)
+    token: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/integrations/github", status_code=201)
+def create_github(
+    body: GitHubConnectionBody, p: Principal = Depends(admin_principal), db: Session = DB
+) -> dict[str, Any]:
+    c = github_connector.create_connection(
+        db, p, name=body.name, base_url=body.base_url, repo=body.repo, token=body.token
+    )
+    return {
+        "connection": ingestion.connection_dict(c),
+        "note": "Token stored encrypted. Use Test connection to check it; status reflects that result.",
+    }
+
+
+@router.post("/integrations/{connection_id}/test")
+def test_github(connection_id: str, p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, Any]:
+    return github_connector.test_connection(db, p, connection_id)
 
 
 @router.post("/integrations/{connection_id}/{action}")

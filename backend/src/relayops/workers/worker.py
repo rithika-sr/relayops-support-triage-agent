@@ -171,6 +171,8 @@ def main() -> None:
     while not stop.is_set():
         try:
             if not process_one(worker_id):
+                with session_scope() as db:
+                    actions.deliver_outbox(db)  # retries (e.g. an unknown external outcome) also run when idle
                 stop.wait(get_settings().worker_poll_seconds)
         except Exception:
             log.exception("worker loop error")

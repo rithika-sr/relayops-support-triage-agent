@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
-from relayops.domain.scope import NotFound, Principal, ValidationFailed
+from relayops.domain.scope import Conflict, NotFound, Principal, ValidationFailed
 from relayops.models import Connection, CustomerAccount, ImportBatch, IngestionReceipt, Ticket
 from relayops.repositories import scoped
 from relayops.services import audit, tickets
@@ -243,6 +243,7 @@ def create_webhook_connection(
         if not ref.strip() or len(ref) > 120:
             raise ValidationFailed("external account references must be 1-120 characters")
         scoped.get_account(db, p, acct_id)  # 404 for accounts outside this organization
+    require_unique_name(db, p.organization_id, name.strip()[:120])
     secret = "whsec_" + secrets.token_urlsafe(32)
     c = Connection(
         organization_id=p.organization_id,
@@ -300,6 +301,14 @@ def set_enabled(db: Session, p: Principal, connection_id: str, enabled: bool) ->
         target_id=c.id,
     )
     return c
+
+
+def require_unique_name(db: Session, organization_id: str, name: str) -> None:
+    taken = db.execute(
+        select(Connection.id).where(Connection.organization_id == organization_id, Connection.name == name)
+    ).first()
+    if taken:
+        raise Conflict(f"a connection named {name!r} already exists")
 
 
 def get_connection(db: Session, p: Principal, connection_id: str) -> Connection:

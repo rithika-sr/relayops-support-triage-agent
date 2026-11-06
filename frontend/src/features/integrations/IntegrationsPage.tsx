@@ -42,6 +42,10 @@ export function IntegrationsPage() {
     mutationFn: ({ id, action }) => api.post(`/integrations/${id}/${action}`),
     onSuccess: () => { toast("Connection updated"); qc.invalidateQueries({ queryKey: ["connections"] }); },
   });
+  const check = useMutation<{ ok: boolean; status: string; error?: string; repository?: string }, ApiError, string>({
+    mutationFn: (id) => api.post(`/integrations/${id}/test`),
+    onSuccess: (r) => { toast(r.ok ? `Reached ${r.repository}` : `Check failed: ${r.error}`, r.ok ? undefined : "neutral"); qc.invalidateQueries({ queryKey: ["connections"] }); },
+  });
   if (!isAdmin) return <Empty title="Integrations are managed by an admin" />;
   return (
     <div>
@@ -52,15 +56,20 @@ export function IntegrationsPage() {
             <Empty title="No connections yet">The customer portal and staff entry work without any connection. Add an inbound webhook to receive tickets from another system.</Empty>
           ) : conns.data!.map((c) => (
             <Card key={c.id} title={<span className="flex items-center gap-2">{c.name}<StatusBadge status={c.status} /></span>}
-              actions={<Button size="sm" onClick={() => toggle.mutate({ id: c.id, action: c.status === "disconnected" ? "enable" : "disable" })}>{c.status === "disconnected" ? "Enable" : "Disable"}</Button>}>
+              actions={<span className="flex gap-2">
+                {c.kind === "github_issues" ? <Button size="sm" busy={check.isPending && check.variables === c.id} onClick={() => check.mutate(c.id)}>Test connection</Button> : null}
+                <Button size="sm" onClick={() => toggle.mutate({ id: c.id, action: c.status === "disconnected" ? "enable" : "disable" })}>{c.status === "disconnected" ? "Enable" : "Disable"}</Button>
+              </span>}>
               <p className="text-sm text-muted">{c.kind === "inbound_webhook" ? "Inbound webhook" : "GitHub issues"} · added {fmtDate(c.created_at)}</p>
               <p className="mt-1 text-sm">Last successful delivery: {c.last_success_at ? fmtDate(c.last_success_at) : "never"}</p>
               {c.last_error ? <p className="text-sm text-danger-700">Last error ({fmtDate(c.last_error_at)}): {c.last_error}</p> : null}
               {c.kind === "inbound_webhook" ? <p className="mt-1 text-[13px] text-muted">Endpoint: <Mono>/api/ingest/webhooks/{c.id}</Mono></p> : null}
-              <details className="mt-3"><summary className="cursor-pointer text-sm font-medium">Recent deliveries</summary><div className="mt-2"><Receipts id={c.id} /></div></details>
+              {c.kind === "github_issues" ? <p className="mt-1 text-[13px] text-muted">Mirrors approved handoffs to <Mono>{String(c.config.repo)}</Mono> at <Mono>{String(c.config.base_url)}</Mono> (local test service).</p> : null}
+              {c.kind === "inbound_webhook" ? <details className="mt-3"><summary className="cursor-pointer text-sm font-medium">Recent deliveries</summary><div className="mt-2"><Receipts id={c.id} /></div></details> : null}
             </Card>
           ))}
         </div>
+        <div className="flex flex-col gap-5">
         <Card title="Add an inbound webhook">
           <form className="flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
             <Field id="cname" label="Name"><Input id="cname" value={name} onChange={(e) => setName(e.target.value)} placeholder="Helpdesk sync" /></Field>
@@ -78,7 +87,32 @@ export function IntegrationsPage() {
             ) : null}
           </form>
         </Card>
+        <GitHubForm />
+        </div>
       </div>
     </div>
+  );
+}
+
+function GitHubForm() {
+  const qc = useQueryClient();
+  const [f, setF] = useState({ name: "", base_url: "http://127.0.0.1:", repo: "", token: "" });
+  const create = useMutation<unknown, ApiError>({
+    mutationFn: () => api.post("/integrations/github", f),
+    onSuccess: () => { setF({ ...f, name: "", token: "" }); qc.invalidateQueries({ queryKey: ["connections"] }); },
+  });
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  return (
+    <Card title="Mirror handoffs to a GitHub-compatible tracker">
+      <Notice tone="warn">This release only connects to a loopback test service (localhost). Writing to github.com is a live external operation and needs a separately authorized setup; a token alone does not enable it.</Notice>
+      <form className="mt-3 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); create.mutate(); }}>
+        <Field id="gname" label="Name"><Input id="gname" value={f.name} onChange={set("name")} /></Field>
+        <Field id="gurl" label="API base URL"><Input id="gurl" value={f.base_url} onChange={set("base_url")} /></Field>
+        <Field id="grepo" label="Repository" hint="owner/name"><Input id="grepo" value={f.repo} onChange={set("repo")} /></Field>
+        <Field id="gtok" label="Token" hint="Stored encrypted; never shown again."><Input id="gtok" type="password" autoComplete="off" value={f.token} onChange={set("token")} /></Field>
+        <Button type="submit" disabled={!f.name || !f.repo || !f.token} busy={create.isPending}>Add connection</Button>
+        {create.error ? <Notice tone="danger">{create.error.detail}</Notice> : null}
+      </form>
+    </Card>
   );
 }

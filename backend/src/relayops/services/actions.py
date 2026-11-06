@@ -1,14 +1,16 @@
 """Approved action execution with a unique action ledger and a transactional outbox.
 
 Default mode is local: an approved reply becomes a customer-visible message in this application (not an
-email), and an approved handoff creates or links a local engineering record. External adapters are
-disabled; a deterministic simulated adapter exists to test failure semantics. An ambiguous remote outcome
+email), and an approved handoff creates or links a local engineering record. When a GitHub Issues connection
+is configured, the handoff is also mirrored from the outbox (services/github_connector.py, loopback hosts
+only in this release). A deterministic simulated adapter exists to test failure semantics. An ambiguous remote outcome
 is recorded as `unknown` and reconciled by marker lookup, never blindly recreated.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Protocol
 
 from sqlalchemy import func, select
@@ -90,6 +92,9 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
         # The proposal row lock serializes executors, so this is a last line of defense.
         return db.execute(select(ActionRecord).where(ActionRecord.proposal_id == proposal_id)).scalar_one()
 
+    from relayops.services import github_connector  # imports this module's exception types
+
+    external: dict[str, Any] = {}
     receipt: dict[str, Any] = {"mode": "local", "note": "Recorded in RelayOps only. No email or external write."}
     msg = TicketMessage(
         data_class=ticket.data_class,
@@ -144,6 +149,15 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
             )
         )
         receipt |= {"engineering_issue_id": issue.id, "engineering_issue_key": issue.key, "owner": issue.owner_team}
+        gh = github_connector.active_connection(db, prop.organization_id)
+        if gh is not None:
+            external = {
+                "connection_id": gh.id,
+                "title": issue.title,
+                "body": f"{issue.description}\n\nComponent: {issue.component}. Local record {issue.key}.",
+            }
+            receipt["external"] = {"adapter": "github_issues", "status": "queued", "repo": gh.config["repo"]}
+            receipt["note"] = "Recorded in RelayOps; a mirror to the configured GitHub test service is queued."
     elif prop.action_kind == ActionKind.LINK_ENGINEERING_ISSUE:
         linked_issue = db.get(EngineeringIssue, prop.payload["issue_id"])
         assert linked_issue is not None and linked_issue.organization_id == prop.organization_id
@@ -214,6 +228,15 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
             payload={"ticket_id": ticket.id, "receipt": receipt},
         )
     )
+    if prop.action_kind == ActionKind.CREATE_ENGINEERING_HANDOFF and "external" in receipt:
+        db.add(
+            OutboxMessage(
+                organization_id=prop.organization_id,
+                action_id=record.id,
+                topic=github_connector.TOPIC,
+                payload=external,
+            )
+        )
     audit.record(
         db,
         organization_id=prop.organization_id,
@@ -227,7 +250,10 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
 
 
 def deliver_outbox(db: Session, limit: int = 20) -> int:
-    """Local-mode delivery marks messages delivered; nothing leaves the application."""
+    """Local topics are marked delivered without leaving the application. The GitHub topic is delivered by
+    the connector, which only talks to loopback test services in this release."""
+    from relayops.services import github_connector
+
     rows = list(
         db.execute(
             select(OutboxMessage)
@@ -238,6 +264,11 @@ def deliver_outbox(db: Session, limit: int = 20) -> int:
         ).scalars()
     )
     for m in rows:
+        if m.topic == github_connector.TOPIC:
+            due = m.payload.get("next_attempt_at")
+            if due is None or datetime.fromisoformat(due) <= utcnow():
+                github_connector.deliver(db, m)
+            continue
         m.attempts += 1
         m.status = "delivered"
         m.delivered_at = utcnow()
