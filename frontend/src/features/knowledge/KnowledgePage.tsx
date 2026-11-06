@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { Badge, Button, Card, Empty, ErrorState, Field, Input, Loading, Mono, Notice, PageHeader, Select, StatusBadge } from "@/components/ui";
 import { api, ApiError, qs } from "@/lib/api";
@@ -113,7 +114,7 @@ function DocPanel({ id, onClose }: { id: string; onClose: () => void }) {
 
 export function KnowledgePage() {
   const [filters, setFilters] = useState({ kind: "", status: "", q: "" });
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(useSearchParams().get("doc"));
   const [tab, setTab] = useState<"library" | "ingest" | "inspect">("library");
   const docs = useQuery({ queryKey: ["knowledge", filters], queryFn: () => api.get<Doc[]>(`/knowledge${qs(filters)}`) });
   const accounts = useQuery({ queryKey: ["accounts"], queryFn: () => api.get<Account[]>("/accounts") });

@@ -31,7 +31,7 @@ from relayops.models import (
     TicketIssueLink,
     TicketMessage,
 )
-from relayops.services import audit
+from relayops.services import audit, events
 from relayops.services.review import verify_binding_for_execution
 
 
@@ -237,6 +237,15 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
                 payload=external,
             )
         )
+    events.record(
+        db,
+        organization_id=prop.organization_id,
+        name="reply.published",
+        event_id=f"reply.published:{record.id}",
+        properties={"ticket_id": ticket.id, "action_id": record.id},
+        customer_account_id=ticket.customer_account_id,
+        data_class=ticket.data_class,
+    )
     audit.record(
         db,
         organization_id=prop.organization_id,

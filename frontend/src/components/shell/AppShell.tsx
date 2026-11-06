@@ -78,6 +78,7 @@ export function AppShell({ children, area }: { children: ReactNode; area: "staff
             <Link href="/portal"><Brand /></Link>
             <nav aria-label="Portal" className="flex items-center gap-1 text-sm">
               <Link href="/portal" className={cx("rounded-md px-2.5 py-1.5", path === "/portal" ? "bg-sunken font-medium" : "text-muted hover:text-text")}>My tickets</Link>
+              <Link href="/portal/help" className={cx("rounded-md px-2.5 py-1.5", path.startsWith("/portal/help") ? "bg-sunken font-medium" : "text-muted hover:text-text")}>Help</Link>
               <button onClick={logout} className="ml-2 rounded-md border border-line-strong px-2.5 py-1.5 hover:bg-sunken">Sign out</button>
             </nav>
           </div>

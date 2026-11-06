@@ -23,7 +23,7 @@ from relayops.models import (
     TicketMessage,
 )
 from relayops.repositories import scoped
-from relayops.services import audit
+from relayops.services import audit, events
 from relayops.services import calendars as calendar_service
 
 STATUSES = ("open", "pending_review", "pending_customer", "resolved", "closed")
@@ -166,6 +166,16 @@ def create_ticket(db: Session, p: Principal, raw: TicketInput) -> tuple[Ticket, 
         target_type="ticket",
         target_id=ticket.id,
         detail={"number": number, "priority": decision.priority},
+    )
+    events.record(
+        db,
+        organization_id=p.organization_id,
+        name="ticket.created",
+        event_id=f"ticket.created:{ticket.id}",
+        properties={"ticket_id": ticket.id, "source_kind": source_kind},
+        customer_account_id=account.id,
+        actor_user_id=p.user_id,
+        data_class=data_class,
     )
     return ticket, True
 

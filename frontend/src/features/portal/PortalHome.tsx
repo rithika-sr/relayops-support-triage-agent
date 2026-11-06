@@ -8,6 +8,7 @@ import { api } from "@/lib/api";
 import { fmtDate } from "@/lib/format";
 import { useMe } from "@/lib/session";
 import type { Doc, Incident, Paged, Ticket } from "@/lib/types";
+import { GettingStarted } from "./GettingStarted";
 import { NewTicketForm } from "./NewTicketForm";
 
 export function PortalHome() {
@@ -28,6 +29,7 @@ export function PortalHome() {
           ))}
         </div>
       ) : null}
+      <GettingStarted />
       <div className="grid gap-5 lg:grid-cols-5">
         <Card title="Your tickets" className="lg:col-span-3">
           {tickets.isLoading ? <Loading /> : tickets.error ? <ErrorState error={tickets.error} retry={tickets.refetch} /> : tickets.data!.items.length === 0 ? (
@@ -52,7 +54,7 @@ export function PortalHome() {
           <NewTicketForm onCreated={(t) => router.push(`/portal/tickets/${t.id}`)} />
         </Card>
       </div>
-      <Card title="Help articles">
+      <Card title="Help articles" actions={<Link className="text-sm text-accent-700 hover:underline" href="/portal/help">Search Help</Link>}>
         {docs.isLoading ? <Loading /> : docs.error ? <ErrorState error={docs.error} /> : (
           <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {docs.data!.filter((d) => d.status === "current").map((d) => (

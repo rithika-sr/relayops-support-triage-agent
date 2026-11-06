@@ -23,6 +23,7 @@ from relayops.api.routers import (
     knowledge,
     operations,
     settings,
+    success,
     tickets,
 )
 from relayops.core import logs
@@ -158,6 +159,7 @@ def create_app() -> FastAPI:
         operations.router,
         integrations.router,
         claim_labels.router,
+        success.router,
         settings.router,
     ):
         app.include_router(r, prefix="/api")

@@ -214,7 +214,19 @@ def login(db: Session, *, email: str, password: str, client_ip: str, user_agent:
         target_id=user.id,
         actor_kind="user",
     )
-    return _issue_session(db, user, m, user_agent)
+    issued = _issue_session(db, user, m, user_agent)
+    if m.role == "customer":
+        from relayops.services import events
+
+        events.record(
+            db,
+            organization_id=m.organization_id,
+            name="user.signed_in",
+            properties={},
+            customer_account_id=m.customer_account_id,
+            actor_user_id=user.id,
+        )
+    return issued
 
 
 def resolve_session(db: Session, token: str) -> tuple[Principal, AuthSession] | None:
