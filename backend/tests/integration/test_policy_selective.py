@@ -254,3 +254,15 @@ def test_adaptive_path_near_miss_version_adds_no_issue_evidence(db, tmp_path):
 def _ev(d):
     ev = d["evidence"]
     return list(ev.values()) if isinstance(ev, dict) else ev
+
+
+def test_signature_lookup_finds_incidents_beyond_the_browsing_limit(db, tmp_path):
+    """The seeded world has more than five active incidents; SAML_IDP_TIMEOUT is one of the older ones."""
+    seeded(db, tmp_path)
+    from relayops.services import diagnostics
+
+    with new_session() as s:
+        browsing = diagnostics.incident_snapshot(s, "org_taskflow", as_of=utcnow(), component=None)
+        _, d = _decide(s, account="acct_northstar", version="2.5", code="SAML_IDP_TIMEOUT")
+    assert len(browsing) == 5 and all(i["error_signature"] != "SAML_IDP_TIMEOUT" for i in browsing)
+    assert d.route == "incident_link" and d.incident["id"] == "inc_saml_idp"

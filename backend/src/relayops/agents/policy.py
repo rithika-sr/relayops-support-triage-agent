@@ -88,8 +88,8 @@ def gather(
         facts.near_miss_issues = [i for i in issues if i["match"]["signature"] and not i["match"]["version"]]
         facts.incidents = [
             i
-            for i in diagnostics.incident_snapshot(db, organization_id, as_of=as_of, component=None)
-            if i["error_signature"] == sig and i["status"] != "resolved"
+            for i in diagnostics.incident_snapshot(db, organization_id, as_of=as_of, component=None, signature=sig)
+            if i["status"] != "resolved"
         ]
         agg = diagnostics.error_summary(
             db,

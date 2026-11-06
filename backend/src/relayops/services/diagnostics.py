@@ -108,8 +108,16 @@ def error_summary(
 
 
 def incident_snapshot(
-    db: Session, organization_id: str, *, as_of: datetime, component: str | None
+    db: Session,
+    organization_id: str,
+    *,
+    as_of: datetime,
+    component: str | None,
+    signature: str | None = None,
+    limit: int = 5,
 ) -> list[dict[str, Any]]:
+    """Active (or recently resolved) incidents. With a signature, every incident with that signature is returned:
+    an exact lookup must not be cut off by the recency limit used for browsing."""
     stmt = select(Incident).where(
         Incident.organization_id == organization_id,
         Incident.started_at <= as_of,
@@ -117,8 +125,11 @@ def incident_snapshot(
     )
     if component:
         stmt = stmt.where(Incident.component == component)
+    if signature:
+        stmt = stmt.where(Incident.error_signature == signature)
+    stmt = stmt.order_by(Incident.started_at.desc())
     out = []
-    for i in db.execute(stmt.order_by(Incident.started_at.desc()).limit(5)).scalars():
+    for i in db.execute(stmt if signature else stmt.limit(limit)).scalars():
         linked = db.execute(
             select(func.count(IncidentTicketLink.id)).where(IncidentTicketLink.incident_id == i.id)
         ).scalar_one()
