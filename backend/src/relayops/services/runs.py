@@ -13,12 +13,13 @@ from relayops.agents.prompts import prompt_hash
 from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
 from relayops.core.db import session_scope
+from relayops.domain.incidents import detect_signatures
 from relayops.domain.playbooks import PlaybookConfig, choose_default_playbook
 from relayops.domain.policies import POLICY_VERSION
 from relayops.domain.scope import Conflict, Principal, ValidationFailed
 from relayops.models import InvestigationRun, Job, Playbook, PlaybookRevision, RunEvent, TicketMessage, new_id
 from relayops.repositories import scoped
-from relayops.services import audit
+from relayops.services import audit, engineering
 
 ACTIVE = ("queued", "running", "awaiting_review", "executing")
 TERMINAL = ("completed", "failed", "cancelled", "rejected")
@@ -79,7 +80,15 @@ def start_run(
         .first()
         or ""
     )
-    key = playbook_key or choose_default_playbook(error_code=ticket.error_code, subject=ticket.subject, body=first_msg)
+    reported_code = ticket.error_code or next(
+        iter(
+            detect_signatures(
+                f"{ticket.subject}\n{first_msg}", engineering.known_signatures(db, ticket.organization_id)
+            )
+        ),
+        None,
+    )
+    key = playbook_key or choose_default_playbook(error_code=reported_code, subject=ticket.subject, body=first_msg)
     _, rev = playbook_config(db, p.organization_id, key)
     cfg = PlaybookConfig.model_validate(rev.config)
     if retrieval_mode:

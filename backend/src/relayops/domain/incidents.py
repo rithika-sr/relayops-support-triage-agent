@@ -24,6 +24,40 @@ def normalize_signature(raw: str | None) -> str | None:
     return _LONG_NUMBER.sub("<N>", sig)
 
 
+STRICT_CODE = re.compile(r"(?<![A-Za-z0-9_])([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?![A-Za-z0-9_])")
+_FAILURE_WORDS = re.compile(r"\b(error|errors|fail\w*|broken|crash\w*|says|shows|returns?|gives?|got|get)\b", re.I)
+
+
+def detect_signatures(text: str, known: list[str] | tuple[str, ...] = ()) -> list[str]:
+    """Error signatures the customer wrote in free text, as reported observations (never verified facts).
+
+    Two sources: strict UPPER_SNAKE codes anywhere (ATTACH_CHECKSUM_FAIL), and the organization's known signatures
+    written loosely (export 500, Export-500, export500). A loose match separated by a space counts only in a
+    sentence that also describes a failure, so "we export 500 rows" is not an error code.
+    """
+    found: list[str] = []
+    for m in STRICT_CODE.finditer(text):
+        if any(ch.isdigit() for ch in m.group(1)) or len(m.group(1)) >= 8:
+            found.append(m.group(1))
+    sentences = re.split(r"(?<=[.!?\n])\s+", text)
+    for sig in known:
+        parts = [p for p in re.split(r"[_\s\-]+", sig) if p]
+        if len(parts) < 2 or any(not re.fullmatch(r"[A-Za-z0-9]+", p) for p in parts):
+            continue
+        tight = re.compile(r"(?<![A-Za-z0-9])" + r"[_\-]?".join(map(re.escape, parts)) + r"(?![A-Za-z0-9])", re.I)
+        spaced = re.compile(r"(?<![A-Za-z0-9])" + r"\s+".join(map(re.escape, parts)) + r"(?![A-Za-z0-9])", re.I)
+        for s in sentences:
+            if tight.search(s) or (spaced.search(s) and _FAILURE_WORDS.search(s)):
+                found.append(sig)
+                break
+    out: list[str] = []
+    for f in found:
+        n = normalize_signature(f)
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
 @dataclass(frozen=True)
 class SignalTicket:
     ticket_id: str

@@ -29,7 +29,7 @@ from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
 from relayops.core.db import session_scope
 from relayops.core.security import content_hash
-from relayops.domain.incidents import normalize_signature
+from relayops.domain.incidents import detect_signatures, normalize_signature
 from relayops.domain.policies import entitlements_for
 from relayops.domain.routes import ROUTE_ACTION, ActionKind, Route
 from relayops.models import CustomerAccount, InvestigationRun, Ticket, TicketMessage, User
@@ -254,6 +254,14 @@ def extract(state: RunState) -> dict[str, Any]:
     for field in ("component", "product_version", "error_code"):
         if t.get(field):
             ex[field] = t[field]
+    if not ex.get("error_code"):
+        # The model often leaves a code in free text unextracted; detect it from the customer's own words. It stays a
+        # reported observation (error_code_source says where it came from), never a verified fact.
+        text = f"{t['subject']}\n" + "\n".join(m["body"] for m in t["messages"] if m["author_kind"] == "customer")
+        with session_scope() as db:
+            found = detect_signatures(text, engineering.known_signatures(db, ctx["organization_id"]))
+        if found:
+            ex["error_code"], ex["error_code_source"] = found[0], "detected_in_customer_text"
     if t["restricted"]:
         ex["intent"] = "security"
     ex["error_signature"] = normalize_signature(ex.get("error_code"))

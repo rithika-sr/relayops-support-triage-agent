@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -127,10 +128,14 @@ DEFAULT_PLAYBOOKS: dict[str, dict[str, Any]] = {
 
 def choose_default_playbook(*, error_code: str | None, subject: str, body: str) -> str:
     text = f"{subject} {body}".lower()
-    if any(w in text for w in ("feature request", "would like", "we want", "can you add", "request:")):
+
+    def has(*phrases: str) -> bool:  # whole words only: "down" must not match "downloads"
+        return any(re.search(rf"\b{re.escape(w)}\b", text) for w in phrases)
+
+    if has("feature request", "would like", "we want", "can you add", "request:"):
         return "feature"
-    if any(w in text for w in ("outage", "down", "delayed", "late again", "incident")):
+    if has("outage", "down", "delayed", "late again", "incident"):
         return "incident"
-    if error_code or any(w in text for w in ("error", "fails", "failing", "broken", "bug")):
+    if error_code or has("error", "fails", "fail", "failing", "failed", "broken", "bug"):
         return "bug"
     return "howto"

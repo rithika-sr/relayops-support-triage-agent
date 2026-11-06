@@ -158,3 +158,23 @@ def issue_detail(db: Session, p: Principal, issue_id: str) -> dict[str, Any]:
         ],
         "distinct_accounts": len({t.customer_account_id for _, t in rows}),
     }
+
+
+def known_signatures(db: Session, organization_id: str) -> list[str]:
+    """Error signatures this organization's records know about (issues, incidents, error aggregates)."""
+    from relayops.models import ErrorAggregate, Incident
+
+    sigs: set[str] = set()
+    for model in (EngineeringIssue, Incident, ErrorAggregate):
+        sigs |= {
+            s
+            for s in db.execute(
+                select(model.error_signature)
+                .where(  # type: ignore[attr-defined]
+                    model.organization_id == organization_id
+                )
+                .distinct()
+            ).scalars()
+            if s
+        }
+    return sorted(sigs)
