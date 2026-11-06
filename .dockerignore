@@ -1,0 +1,16 @@
+.git
+.local
+.claude
+CLAUDE.md
+.env
+**/.venv
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+frontend/test-results
+frontend/playwright-report
+data/runtime
+docs/images

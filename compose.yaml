@@ -1,5 +1,20 @@
 name: relayops
 
+# Default: only Postgres/pgvector for native development (`make up`).
+# `--profile app` adds containerized API, worker, and web that use the host's native Ollama.
+# Container ports default to 8021/3021 so they can run beside a native `make dev` stack.
+
+x-backend-env: &backend-env
+  RELAYOPS_DATABASE_URL: postgresql+psycopg://relayops:${POSTGRES_PASSWORD}@db:5432/relayops
+  RELAYOPS_SESSION_SECRET: ${RELAYOPS_SESSION_SECRET:?run make setup to generate .env}
+  RELAYOPS_OLLAMA_BASE_URL: ${RELAYOPS_CONTAINER_OLLAMA_URL:-http://host.docker.internal:11434}
+  RELAYOPS_CHAT_MODEL: ${RELAYOPS_CHAT_MODEL:-qwen3:4b-instruct}
+  RELAYOPS_EMBED_MODEL: ${RELAYOPS_EMBED_MODEL:-embeddinggemma}
+  RELAYOPS_LLM_PROVIDER: ${RELAYOPS_CONTAINER_LLM_PROVIDER:-ollama}
+  RELAYOPS_FIXTURE_SCRIPT: ${RELAYOPS_CONTAINER_FIXTURE_SCRIPT:-}
+  RELAYOPS_WEB_ORIGIN: http://localhost:${RELAYOPS_CONTAINER_WEB_PORT:-3021}
+  RELAYOPS_API_ORIGIN: http://localhost:${RELAYOPS_CONTAINER_API_PORT:-8021}
+
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -16,6 +31,46 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+  migrate:
+    profiles: ["app"]
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    environment: *backend-env
+    command: ["sh", "-c", "uv run --no-sync alembic upgrade head && uv run --no-sync python -c 'from relayops.agents.checkpoint import ensure_checkpointer_schema as e; e()'"]
+    depends_on: { db: { condition: service_healthy } }
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  api:
+    profiles: ["app"]
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    environment: *backend-env
+    ports:
+      - "127.0.0.1:${RELAYOPS_CONTAINER_API_PORT:-8021}:8020"
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8020/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    profiles: ["app"]
+    build: { context: ., dockerfile: infra/docker/backend.Dockerfile }
+    environment: *backend-env
+    command: ["uv", "run", "--no-sync", "python", "-m", "relayops.workers.worker"]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  web:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: infra/docker/frontend.Dockerfile
+      args: { RELAYOPS_API_INTERNAL_URL: "http://api:8020" }
+    ports:
+      - "127.0.0.1:${RELAYOPS_CONTAINER_WEB_PORT:-3021}:3020"
+    depends_on: { api: { condition: service_healthy } }
 
 volumes:
   relayops_pgdata:
