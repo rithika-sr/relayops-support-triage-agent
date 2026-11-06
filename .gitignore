@@ -25,3 +25,7 @@ data/runtime/
 # Local development orchestration
 .claude/
 CLAUDE.md
+
+# Generated agent-instruction files from framework tooling
+frontend/AGENTS.md
+frontend/CLAUDE.md
