@@ -51,8 +51,9 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 1.0
 
     action_mode: Literal["local"] = "local"
-    # Synthetic world anchor for seeded timestamps: ISO-8601 UTC, or "now" (rounded to the hour).
-    world_anchor: str = ""
+    # Synthetic world anchor for seeded timestamps: "now" (rounded down to the hour) or an ISO-8601 UTC time.
+    # Empty means the fixed anchor recorded in data/fixtures/world.json.
+    world_anchor: str = "now"
     login_max_failures: int = 5
     login_window_minutes: int = 15
 

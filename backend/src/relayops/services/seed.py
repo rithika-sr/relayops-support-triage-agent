@@ -241,12 +241,22 @@ def seed(db: Session, provider: Provider | None = None, credentials_path: Path |
     world = json.loads((DATA / "fixtures" / "world.json").read_text())
     history = json.loads((DATA / "fixtures" / "historical_tickets.json").read_text())["tickets"]
     anchor = world_anchor()
+    existing = db.get(Organization, world["organizations"][0]["id"])
+    if existing is not None and (existing.settings or {}).get("world_anchor"):
+        # Keep timestamps consistent with rows already seeded; reset the database to re-anchor.
+        anchor = datetime.fromisoformat(existing.settings["world_anchor"])
     creds_path = credentials_path or CREDENTIALS
     creds = _load_credentials(creds_path)
     stats: dict[str, Any] = {"anchor": anchor.isoformat(), "documents_changed": 0}
 
     for o in world["organizations"]:
         org = _upsert(db, Organization, o["id"], name=o["name"], slug=o["slug"])
+        if "world_anchor" not in (org.settings or {}):
+            org.settings = {
+                **(org.settings or {}),
+                "world_anchor": anchor.isoformat(),
+                "world_version": world["world_version"],
+            }
         db.flush()
         accounts = {
             a["id"]: _upsert(
