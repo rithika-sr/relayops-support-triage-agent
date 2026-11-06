@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Model provider. `ollama` is real local inference; `fixture` is a deterministic
     # scripted provider that exists only for offline tests and is labeled everywhere.
     llm_provider: Literal["ollama", "fixture"] = "ollama"
+    fixture_script: str = ""  # e.g. "generic" for offline browser tests; ignored unless llm_provider=fixture
     ollama_base_url: str = "http://127.0.0.1:11434"
     chat_model: str = "qwen3:4b-instruct"
     embed_model: str = "embeddinggemma"

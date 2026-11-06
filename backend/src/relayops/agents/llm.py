@@ -208,7 +208,12 @@ def get_provider() -> Provider:
     global _provider
     if _provider is None:
         s = get_settings()
-        _provider = FixtureProvider() if s.llm_provider == "fixture" else OllamaProvider(s)
+        if s.llm_provider == "fixture":
+            from relayops.agents.fixture_scripts import SCRIPTS
+
+            _provider = FixtureProvider(SCRIPTS.get(s.fixture_script))
+        else:
+            _provider = OllamaProvider(s)
     return _provider
 
 

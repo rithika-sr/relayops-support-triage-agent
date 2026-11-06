@@ -235,3 +235,16 @@ def test_jobs_are_deduplicated_per_run(db, tmp_path):
     assert support.post(f"/api/tickets/{tid}/investigations", json={}).status_code == 409
     with new_session() as s:
         assert s.execute(select(func.count(Job.id))).scalar_one() == 1
+
+
+def test_generic_fixture_script_drives_the_full_runtime(db, tmp_path):
+    from relayops.agents.fixture_scripts import generic_script
+
+    creds = seeded(db, tmp_path)
+    use_script(generic_script)
+    cust, support = client(CUSTOMER, creds), client(SUPPORT, creds)
+    tid = export_ticket(cust)
+    run_id = _start(support, tid, playbook_key="bug")
+    drain()
+    _, prop = _pending(support, run_id)
+    assert prop["route"] == "link_existing_issue" and prop["payload"]["issue_key"] == "ENG-101"
