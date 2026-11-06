@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Do not generate AI-agent instruction files into the source tree.
   agentRules: false,
+  // Keep the development overlay badge out of documentation screenshots; build errors still show.
+  devIndicators: false,
   output: "standalone",
   turbopack: {
     rules: {
