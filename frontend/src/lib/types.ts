@@ -168,7 +168,9 @@ export interface Proposal {
     status: string;
     failed: string[];
     checks: Check[];
-    claims: { text: string; lexical_overlap: number; label: string }[];
+    claims: Claim[];
+    uncertain_claims?: number;
+    claim_verifier?: { kind: string; model?: string; digest?: string | null };
     note: string;
   };
   verification_status: string;
@@ -311,4 +313,14 @@ export interface Overview {
   open_by_component: Record<string, number>;
   created_per_day: { day: string; count: number }[];
   runs_by_status: Record<string, number>;
+}
+
+export interface Claim {
+  text: string;
+  kind: "social" | "request" | "hypothesis" | "procedural" | "factual";
+  verdict: "supported" | "contradicted" | "insufficient_evidence" | "unavailable" | "not_a_claim";
+  method: "none" | "typed_entitlement" | "typed_number" | "semantic_model" | "not_run";
+  evidence_ids: string[];
+  detail: string;
+  label: string;
 }

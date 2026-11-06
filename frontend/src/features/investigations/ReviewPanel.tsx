@@ -52,7 +52,14 @@ function groupStatus(checks: Check[]): "pass" | "warn" | "fail" | "none" {
 }
 
 const CLAIM_TONE: Record<string, "ok" | "danger" | "neutral" | "warn"> = {
-  supported: "ok", provenance_checked: "ok", contradicted: "danger", social: "neutral", request: "neutral", hypothesis: "neutral",
+  supported: "ok", contradicted: "danger", insufficient_evidence: "warn", unavailable: "warn", not_a_claim: "neutral",
+};
+const VERDICT_TEXT: Record<string, string> = {
+  supported: "Supported", contradicted: "Contradicted", insufficient_evidence: "Not in sources", unavailable: "Not checked",
+};
+const METHOD_TEXT: Record<string, string> = {
+  typed_entitlement: "plan record", typed_number: "number in cited source", semantic_model: "local model judgment",
+  not_run: "no automatic check", none: "",
 };
 
 export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, onSelectEvidence }: {
@@ -67,6 +74,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
   const toast = useToast();
   const [draft, setDraft] = useState(proposal.payload.customer_reply);
   const [note, setNote] = useState("");
+  const [ack, setAck] = useState(false);
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ["run", runId] });
     if (ticketId) qc.invalidateQueries({ queryKey: ["ticket", ticketId] });
@@ -76,7 +84,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
     onSuccess: () => { toast(`Saved as version ${proposal.version + 1}; checks re-ran on the new text.`); refresh(); },
   });
   const approve = useMutation<unknown, ApiError>({
-    mutationFn: () => api.post(`/proposals/${proposal.id}/approve`, { expected_version: proposal.version, expected_payload_hash: proposal.payload_hash, note: note || null }),
+    mutationFn: () => api.post(`/proposals/${proposal.id}/approve`, { expected_version: proposal.version, expected_payload_hash: proposal.payload_hash, note: note || null, acknowledge_uncertain_claims: ack }),
     onSuccess: () => { toast("Approved. Publishing runs once in the background."); refresh(); },
   });
   const reject = useMutation<unknown, ApiError>({
@@ -91,9 +99,14 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
   const p = proposal.payload;
   const checks = proposal.verification.checks ?? [];
   const claims = proposal.verification.claims ?? [];
-  const uncertain = claims.filter((c) => !(c.label in CLAIM_TONE) || CLAIM_TONE[c.label] === "warn");
+  const substantive = claims.filter((c) => c.kind === "factual" || c.kind === "procedural");
+  const uncertain = substantive.filter((c) => c.verdict === "insufficient_evidence" || c.verdict === "unavailable");
+  const contradicted = claims.filter((c) => c.verdict === "contradicted");
+  const needsAck = uncertain.length > 0;
   const approveBlocked = !canReview ? "Your role cannot review this ticket." : dirty ? "Save your edit first; approval applies to a saved version."
-    : stale ? `This draft is out of date (${proposal.stale_reasons.join(", ")}).` : failed ? "Fix the failed checks before approving." : null;
+    : stale ? `This draft is out of date (${proposal.stale_reasons.join(", ")}).` : failed ? "Fix the failed checks before approving."
+    : needsAck && !ack ? "Confirm you checked the uncertain claims." : null;
+  const verifier = proposal.verification.claim_verifier;
   const primaryLabel = proposal.action_kind === "create_engineering_handoff" ? "Approve reply and create handoff" : "Approve and publish reply";
   const human = proposal.reviews.find((r) => r.decision === "approve");
 
@@ -154,15 +167,32 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
             <details>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5">
                 <span>Claim support</span>
-                <span>{uncertain.length ? <Badge tone="warn">{uncertain.length} uncertain</Badge> : <Badge tone="ok">no uncertain claims</Badge>}</span>
+                <span>
+                  {contradicted.length ? <Badge tone="danger">{contradicted.length} contradicted</Badge>
+                    : uncertain.length ? <Badge tone="warn">{uncertain.length} of {substantive.length} uncertain</Badge>
+                    : <Badge tone="ok">{substantive.length ? "all claims supported" : "no factual claims"}</Badge>}
+                </span>
               </summary>
               <div className="px-4 pb-3">
-                <ul className="flex flex-col gap-1.5">
+                <ul className="flex flex-col gap-2">
                   {claims.map((c, i) => (
-                    <li key={i} className="flex gap-2"><Badge tone={CLAIM_TONE[c.label] ?? "warn"}>{label(c.label)}</Badge><span>{c.text}</span></li>
+                    <li key={i} className="flex gap-2">
+                      <Badge tone={CLAIM_TONE[c.verdict] ?? "warn"}>{VERDICT_TEXT[c.verdict] ?? label(c.kind)}</Badge>
+                      <span>
+                        {c.text}
+                        {c.method !== "none" ? (
+                          <span className="block text-xs text-muted">
+                            {METHOD_TEXT[c.method]}{c.evidence_ids.length ? ` · ${c.evidence_ids.join(", ")}` : ""}{c.detail ? ` · ${c.detail}` : ""}
+                          </span>
+                        ) : null}
+                      </span>
+                    </li>
                   ))}
                 </ul>
-                <p className="mt-2 text-xs text-muted">{proposal.verification.note}</p>
+                <p className="mt-2 text-xs text-muted">
+                  {proposal.verification.note}
+                  {verifier?.kind === "local_model" ? ` Verifier: ${verifier.model}${verifier.digest ? ` (${verifier.digest.slice(0, 12)})` : ""}.` : ""}
+                </p>
               </div>
             </details>
           </li>
@@ -207,6 +237,12 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
           <Field id="review-note" label="Note for the history (optional)">
             <Textarea id="review-note" value={note} onChange={(e) => setNote(e.target.value)} className="min-h-10" readOnly={!canReview} />
           </Field>
+          {needsAck && !failed ? (
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} disabled={!canReview} />
+              <span>I checked the {uncertain.length} claim{uncertain.length === 1 ? "" : "s"} the sources could not confirm.</span>
+            </label>
+          ) : null}
           {err ? <Notice tone="danger">{err.detail}</Notice> : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={!!approveBlocked} busy={approve.isPending} onClick={() => approve.mutate()} title={approveBlocked ?? undefined}>{primaryLabel}</Button>

@@ -1,0 +1,278 @@
+{
+  "dataset": "claims_v1 (author-labeled, synthetic, 28 items; development set, not held out)",
+  "verifier": {
+    "kind": "off"
+  },
+  "summary": {
+    "items": 28,
+    "answered": 8,
+    "accuracy_on_answered": 1.0,
+    "contradiction_recall": 0.333,
+    "false_supported": 0,
+    "by_method": {
+      "typed_number": 7,
+      "typed_entitlement": 1,
+      "not_run": 20
+    }
+  },
+  "confusion": {
+    "supported": {
+      "supported": 3,
+      "contradicted": 0,
+      "insufficient_evidence": 0,
+      "unavailable": 9,
+      "not_a_claim": 0
+    },
+    "contradicted": {
+      "supported": 0,
+      "contradicted": 3,
+      "insufficient_evidence": 0,
+      "unavailable": 6,
+      "not_a_claim": 0
+    },
+    "insufficient_evidence": {
+      "supported": 0,
+      "contradicted": 0,
+      "insufficient_evidence": 2,
+      "unavailable": 5,
+      "not_a_claim": 0
+    }
+  },
+  "rows": [
+    {
+      "item_id": "claim_01",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources"
+    },
+    {
+      "item_id": "claim_02",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_03",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "says 50,000 rows; cited source says 25,000 rows"
+    },
+    {
+      "item_id": "claim_04",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_05",
+      "gold": "insufficient_evidence",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_06",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_07",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources"
+    },
+    {
+      "item_id": "claim_08",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "says 10 minutes; cited source says 2 hours"
+    },
+    {
+      "item_id": "claim_09",
+      "gold": "insufficient_evidence",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_10",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_11",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_12",
+      "gold": "contradicted",
+      "verdict": "contradicted",
+      "method": "typed_entitlement",
+      "evidence_ids": [],
+      "detail": "plan entitlement sso=False; sentence says available"
+    },
+    {
+      "item_id": "claim_13",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_14",
+      "gold": "insufficient_evidence",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_15",
+      "gold": "supported",
+      "verdict": "supported",
+      "method": "typed_number",
+      "evidence_ids": [
+        "E1"
+      ],
+      "detail": "numbers match cited sources"
+    },
+    {
+      "item_id": "claim_16",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_17",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_18",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_19",
+      "gold": "insufficient_evidence",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_20",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_21",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_22",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_23",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "typed_number",
+      "evidence_ids": [],
+      "detail": "no cited source states 24 hours"
+    },
+    {
+      "item_id": "claim_24",
+      "gold": "insufficient_evidence",
+      "verdict": "insufficient_evidence",
+      "method": "typed_number",
+      "evidence_ids": [],
+      "detail": "no cited source states five times"
+    },
+    {
+      "item_id": "claim_25",
+      "gold": "insufficient_evidence",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_26",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_27",
+      "gold": "contradicted",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    },
+    {
+      "item_id": "claim_28",
+      "gold": "supported",
+      "verdict": "unavailable",
+      "method": "not_run",
+      "evidence_ids": [],
+      "detail": "semantic verifier not run"
+    }
+  ],
+  "generated_at": "20261106T161414"
+}

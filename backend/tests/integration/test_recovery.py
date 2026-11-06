@@ -50,7 +50,11 @@ def test_pending_review_survives_restart_and_resumes_same_thread(db, tmp_path):
     prop = [p for p in support.get(f"/api/investigations/{run_id}").json()["proposals"]][0]
     support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     drain()
     assert _run(run_id).status == "completed"
@@ -134,7 +138,11 @@ def test_cancel_after_completed_action_does_not_claim_undo(db, tmp_path):
     prop = support.get(f"/api/investigations/{run_id}").json()["proposals"][0]
     support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     drain()
     r = support.post(f"/api/investigations/{run_id}/cancel")
@@ -149,7 +157,11 @@ def test_cancel_while_awaiting_review_blocks_approval(db, tmp_path):
     assert support.post(f"/api/investigations/{run_id}/cancel").json()["status"] == "cancelled"
     r = support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     assert r.status_code == 409
 
@@ -160,7 +172,11 @@ def test_recorded_replay_is_labeled_and_executes_nothing(db, tmp_path):
     prop = support.get(f"/api/investigations/{run_id}").json()["proposals"][0]
     support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     drain()
     provider = llm.get_provider()
@@ -179,7 +195,11 @@ def test_recorded_replay_is_labeled_and_executes_nothing(db, tmp_path):
     # The executed proposal cannot be approved again.
     again = support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     assert again.status_code == 409
 
@@ -190,7 +210,11 @@ def test_compare_run_needs_its_own_review(db, tmp_path):
     prop = support.get(f"/api/investigations/{run_id}").json()["proposals"][0]
     support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     drain()
     use_script(export_bug_script())

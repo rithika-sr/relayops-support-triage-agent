@@ -39,6 +39,7 @@ class ApproveBody(BaseModel):
     expected_version: int
     expected_payload_hash: str = Field(min_length=64, max_length=64)
     note: str | None = Field(default=None, max_length=500)
+    acknowledge_uncertain_claims: bool = False
 
 
 class RejectBody(BaseModel):
@@ -325,6 +326,7 @@ def approve(
         expected_version=body.expected_version,
         expected_payload_hash=body.expected_payload_hash,
         note=body.note,
+        acknowledge_uncertain_claims=body.acknowledge_uncertain_claims,
     )
     return {
         "review_id": r.id,

@@ -1,8 +1,9 @@
 """Deterministic verification of a proposal against records.
 
 Structural checks (schema, provenance, visibility, currency) and typed fact checks (entitlements, issue
-version match, incident visibility, internal identifiers) are computed from records. Lexical overlap is
-reported as such: it is not semantic proof that a cited source supports a claim.
+version match, incident visibility, internal identifiers) are computed from records. Claim-level support
+(agents/claims.py) is reported per claim with its method: typed rule, local model judgment, or not run. A
+model judgment is not proof; contradicted claims fail verification and uncertain ones need acknowledgment.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from relayops.agents import claims as claim_checks
 from relayops.domain.routes import ActionKind
 from relayops.models import ComponentOwner, CustomerAccount, EngineeringIssue, Incident, KnowledgeDocument
 
@@ -88,6 +90,10 @@ def verify(
     payload: dict[str, Any],
     evidence: dict[str, dict[str, Any]],
     context: dict[str, Any],
+    claim_provider: Any | None = None,
+    claim_note: str | None = None,
+    claim_verifier_info: dict[str, Any] | None = None,
+    claim_timeout: float = 30.0,
 ) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     reply = (payload.get("customer_reply") or "").strip()
@@ -247,28 +253,31 @@ def verify(
         if ok_inc and inc is not None and not inc.public_visible and inc.title.lower() in reply.lower():
             checks.append(_check("incident_visibility", False, "reply names an internal-only incident", "visibility"))
 
-    # 9. Claim support: lexical overlap only; never presented as entailment.
-    sources = [evidence[c]["excerpt"] for c in cited if c in evidence]
-    sources.append(" ".join(str(v) for v in context["account"]["entitlements"].values()))
-    sources.append(context["account"]["plan"])
-    claims = []
-    for s in _sentences(reply):
-        ov = _overlap(s, sources) if sources else 0.0
-        claims.append(
-            {
-                "text": s,
-                "lexical_overlap": round(ov, 2),
-                "label": "provenance_checked" if cited and ov >= 0.35 else "semantically_unverified",
-            }
-        )
-    unverified = sum(1 for c in claims if c["label"] == "semantically_unverified")
+    # 9. Claim support: typed checks first, then the configured semantic verifier on cited spans only.
+    spans = {c: evidence[c]["excerpt"] for c in cited if c in evidence}
+    claim_results = claim_checks.check_reply(
+        reply,
+        entitlements=context["account"]["entitlements"],
+        spans=spans,
+        provider=claim_provider,
+        timeout=claim_timeout,
+    )
+    if claim_provider is None and claim_note:
+        for cl in claim_results:
+            if cl.method == "not_run":
+                cl.detail = claim_note
+    claims = [c.as_dict() for c in claim_results]
+    substantive = [c for c in claim_results if c.kind in ("factual", "procedural")]
+    contradicted = [c for c in claim_results if c.verdict == "contradicted"]
+    uncertain = [c for c in substantive if c.verdict in ("insufficient_evidence", "unavailable")]
     checks.append(
         _check(
-            "claim_support_lexical",
-            None if unverified else True,
-            f"{unverified}/{len(claims)} sentences have low lexical overlap with cited sources "
-            "(lexical overlap is not semantic proof)",
-            "lexical",
+            "claim_support",
+            False if contradicted else (None if uncertain else True),
+            (f"{len(contradicted)} contradicted; " if contradicted else "")
+            + f"{len(uncertain)} of {len(substantive)} substantive claims uncertain "
+            f"(typed checks plus {'a local model judgment' if claim_provider else 'no semantic verifier'}; not proof)",
+            "claims",
         )
     )
 
@@ -278,6 +287,12 @@ def verify(
         "failed": failed,
         "checks": checks,
         "claims": claims,
-        "note": "Automated checks cover provenance, visibility, currency, and typed facts. Semantic support of "
-        "claims is not verified automatically; human review is required.",
+        "claim_verifier": claim_verifier_info or {"kind": "not_run"},
+        "uncertain_claims": sum(
+            1
+            for c in claims
+            if c["kind"] in ("factual", "procedural") and c["verdict"] in ("insufficient_evidence", "unavailable")
+        ),
+        "note": "Provenance, visibility, currency, and typed facts are checked against records. Claim verdicts come "
+        "from typed rules or a local model judgment over cited passages; neither is proof. Human review decides.",
     }

@@ -56,9 +56,18 @@ def test_end_to_end_customer_sees_only_approved_reply(db, tmp_path):
     assert len(msgs) == 1
     assert cust.get(f"/api/investigations/{run_id}").status_code == 403
 
-    r = support.post(
+    unacked = support.post(
         f"/api/proposals/{prop['id']}/approve",
         json={"expected_version": prop["version"], "expected_payload_hash": prop["payload_hash"]},
+    )
+    assert unacked.status_code == 409 and "could not be confirmed" in unacked.text
+    r = support.post(
+        f"/api/proposals/{prop['id']}/approve",
+        json={
+            "expected_version": prop["version"],
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     assert r.status_code == 200, r.text
     drain()
@@ -102,15 +111,18 @@ def test_edit_supersedes_version_and_old_approval_fails(db, tmp_path):
     v2 = r.json()
     assert v2["version"] == 2 and v2["payload_hash"] != v1["payload_hash"]
     stale = support.post(
-        f"/api/proposals/{v1['id']}/approve", json={"expected_version": 1, "expected_payload_hash": v1["payload_hash"]}
+        f"/api/proposals/{v1['id']}/approve",
+        json={"expected_version": 1, "expected_payload_hash": v1["payload_hash"], "acknowledge_uncertain_claims": True},
     )
     assert stale.status_code == 409
     wrong_hash = support.post(
-        f"/api/proposals/{v2['id']}/approve", json={"expected_version": 2, "expected_payload_hash": v1["payload_hash"]}
+        f"/api/proposals/{v2['id']}/approve",
+        json={"expected_version": 2, "expected_payload_hash": v1["payload_hash"], "acknowledge_uncertain_claims": True},
     )
     assert wrong_hash.status_code == 409
     ok = support.post(
-        f"/api/proposals/{v2['id']}/approve", json={"expected_version": 2, "expected_payload_hash": v2["payload_hash"]}
+        f"/api/proposals/{v2['id']}/approve",
+        json={"expected_version": 2, "expected_payload_hash": v2["payload_hash"], "acknowledge_uncertain_claims": True},
     )
     assert ok.status_code == 200
     drain()
@@ -132,7 +144,11 @@ def test_customer_message_during_review_makes_approval_stale(db, tmp_path):
     cust.post(f"/api/tickets/{tid}/messages", json={"body": "Update: it now fails on 2.5 too."})
     r = support.post(
         f"/api/proposals/{prop['id']}/approve",
-        json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+        json={
+            "expected_version": 1,
+            "expected_payload_hash": prop["payload_hash"],
+            "acknowledge_uncertain_claims": True,
+        },
     )
     assert r.status_code == 409 and "ticket_revision" in r.json()["detail"]
     detail, prop = _pending(support, run_id)
@@ -147,7 +163,7 @@ def test_concurrent_approvals_produce_one_action(db, tmp_path):
     run_id = _start(support, export_ticket(cust), playbook_key="bug")
     drain()
     _, prop = _pending(support, run_id)
-    body = {"expected_version": 1, "expected_payload_hash": prop["payload_hash"]}
+    body = {"expected_version": 1, "expected_payload_hash": prop["payload_hash"], "acknowledge_uncertain_claims": True}
     codes: list[int] = []
 
     def go(c):
@@ -211,7 +227,11 @@ def test_other_org_cannot_touch_runs_events_or_proposals(db, tmp_path):
     assert (
         other.post(
             f"/api/proposals/{prop['id']}/approve",
-            json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+            json={
+                "expected_version": 1,
+                "expected_payload_hash": prop["payload_hash"],
+                "acknowledge_uncertain_claims": True,
+            },
         ).status_code
         == 404
     )
@@ -220,7 +240,11 @@ def test_other_org_cannot_touch_runs_events_or_proposals(db, tmp_path):
     assert (
         cust.post(
             f"/api/proposals/{prop['id']}/approve",
-            json={"expected_version": 1, "expected_payload_hash": prop["payload_hash"]},
+            json={
+                "expected_version": 1,
+                "expected_payload_hash": prop["payload_hash"],
+                "acknowledge_uncertain_claims": True,
+            },
         ).status_code
         == 403
     )

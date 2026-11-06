@@ -21,6 +21,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
+from relayops.agents import claims as claim_checks
 from relayops.agents import policy, prompts
 from relayops.agents.llm import get_provider
 from relayops.agents.outputs import Extraction, NextAction, Reply, RouteProposal
@@ -845,6 +846,7 @@ def verify(state: RunState) -> dict[str, Any]:
         destination["engineering_issue_id"] = rp["issue_id"]
     if rp.get("incident_id"):
         destination["incident_id"] = rp["incident_id"]
+    verifier, verifier_info = claim_checks.verifier()
     with session_scope() as db:
         run = db.get(InvestigationRun, run_id)
         assert run is not None
@@ -857,6 +859,8 @@ def verify(state: RunState) -> dict[str, Any]:
             payload=payload,
             evidence=state["evidence"],
             context=payload["context_snapshot"],
+            claim_provider=verifier,
+            claim_verifier_info=verifier_info,
         )
         run.route = rp["route"]
         run.verdict = rp["verdict"]

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from relayops.agents import verification
+from relayops.core.config import get_settings
 from relayops.core.security import content_hash
 from relayops.domain.binding import approval_binding, binding_hash, binding_mismatches
 from relayops.domain.policies import POLICY_VERSION
@@ -38,6 +39,8 @@ def create_proposal(
     context: dict[str, Any],
     authored_by: str = "agent",
     version: int = 1,
+    claim_provider: Any | None = None,
+    claim_verifier_info: dict[str, Any] | None = None,
 ) -> Proposal:
     """Idempotent on (run, version): re-executing the node after a crash returns the same row."""
     existing = db.execute(
@@ -53,6 +56,13 @@ def create_proposal(
         payload=payload,
         evidence=evidence,
         context=context,
+        claim_provider=claim_provider,
+        claim_verifier_info=claim_verifier_info,
+        claim_timeout=get_settings().claim_verifier_timeout_seconds,
+        claim_note=None
+        if authored_by == "agent"
+        else "edited by a reviewer; the semantic verifier does not run on "
+        "human edits, so the reviewer's own review is the semantic check",
     )
     used = set(payload.get("reply_evidence_ids") or []) | set(payload.get("internal_evidence_ids") or [])
     ev_list = [{"id": k, **v} for k, v in evidence.items() if k in used]
@@ -239,10 +249,14 @@ def approve(
     expected_version: int,
     expected_payload_hash: str,
     note: str | None = None,
+    acknowledge_uncertain_claims: bool = False,
 ) -> Review:
     prop = _lock_pending(db, p, proposal_id, expected_version, expected_payload_hash)
     if prop.verification_status != "passed":
         raise Conflict("verification has not passed for this version; edit the draft or reject it")
+    uncertain = int(prop.verification.get("uncertain_claims") or 0)
+    if uncertain and not acknowledge_uncertain_claims:
+        raise Conflict(f"{uncertain} claim(s) could not be confirmed from cited sources; confirm you checked them")
     stale = staleness(db, prop)
     if stale:
         raise Conflict("proposal is stale (" + ", ".join(stale) + "); start a new run or edit to refresh it")
@@ -275,7 +289,12 @@ def approve(
         action="proposal.approved",
         target_type="proposal",
         target_id=prop.id,
-        detail={"binding_hash": review.binding_hash, "version": prop.version, "action_kind": prop.action_kind},
+        detail={
+            "binding_hash": review.binding_hash,
+            "version": prop.version,
+            "action_kind": prop.action_kind,
+            "uncertain_claims_acknowledged": uncertain if acknowledge_uncertain_claims else 0,
+        },
     )
     return review
 

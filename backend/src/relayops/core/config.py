@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     max_output_tokens: int = 700
     llm_timeout_seconds: float = 90.0
     embed_max_chars: int = 2000
+    # Claim verifier: a local model judging cited spans. Empty model means the pinned chat model.
+    claim_verifier: Literal["off", "local_model"] = "local_model"
+    claim_verifier_model: str = ""
+    claim_verifier_timeout_seconds: float = 30.0
 
     # Investigation budgets, enforced in code.
     max_investigation_turns: int = 4

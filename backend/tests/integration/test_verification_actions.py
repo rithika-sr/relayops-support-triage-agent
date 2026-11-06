@@ -57,19 +57,33 @@ def test_typed_and_policy_checks(db, tmp_path):
         assert "required_fields" in handoff["failed"]
 
 
-def test_lexical_overlap_is_labeled_not_proof(db, tmp_path):
+def test_claim_support_keeps_methods_separate(db, tmp_path):
     seeded(db, tmp_path)
     with new_session() as s:
         r = _v(
             s,
-            "SSO is included only in the Enterprise plan. Our office dog is called Biscuit today.",
+            "Thanks for asking. SSO is included only in the Enterprise plan. Our office dog is called Biscuit.",
             cites=["E1"],
             evidence=PUBLIC,
         )
-        labels = [c["label"] for c in r["claims"]]
-        assert labels == ["provenance_checked", "semantically_unverified"]
-        check = next(c for c in r["checks"] if c["name"] == "claim_support_lexical")
-        assert check["status"] == "warn" and "not semantic proof" in check["detail"]
+        by_text = {c["text"]: c for c in r["claims"]}
+        assert by_text["Thanks for asking."]["verdict"] == "not_a_claim"
+        assert by_text["SSO is included only in the Enterprise plan."]["method"] == "typed_entitlement"
+        assert by_text["SSO is included only in the Enterprise plan."]["verdict"] == "supported"
+        biscuit = by_text["Our office dog is called Biscuit."]
+        assert (biscuit["verdict"], biscuit["method"]) == ("unavailable", "not_run")
+        check = next(c for c in r["checks"] if c["name"] == "claim_support")
+        assert check["status"] == "warn" and "not proof" in check["detail"]
+        assert r["uncertain_claims"] == 1 and r["claim_verifier"] == {"kind": "not_run"}
+
+
+def test_contradicted_number_fails_verification(db, tmp_path):
+    seeded(db, tmp_path)
+    evidence = {"E1": {**PUBLIC["E1"], "excerpt": "Business plans can export up to 25,000 rows per export."}}
+    with new_session() as s:
+        r = _v(s, "Your plan can export 50,000 rows at once.", cites=["E1"], evidence=evidence)
+    assert "claim_support" in r["failed"]
+    assert r["claims"][0]["method"] == "typed_number" and r["claims"][0]["evidence_ids"] == ["E1"]
 
 
 def _record(db):
