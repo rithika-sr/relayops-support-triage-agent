@@ -111,3 +111,27 @@ def test_hedged_sentences_are_still_checked_when_sources_are_cited():
         "Exports may take a day or more.", entitlements={}, spans=SPAN, provider=FixtureProvider(script)
     )
     assert out[0].kind == "hypothesis" and out[0].verdict == "contradicted" and seen == ["claim_verifier"]
+
+
+def test_numbers_the_customer_reported_are_not_checked_against_sources():
+    span = {"E1": "Exports larger than 50,000 tasks should use the background export."}
+    sentence = "Your project has about 80,000 tasks, so use the background export."
+    assert claims.typed_check(sentence, entitlements={}, spans=span).verdict == "contradicted"  # without context
+    assert (
+        claims.typed_check(
+            sentence, entitlements={}, spans=span, reported="Our project (about 80,000 tasks) fails to export."
+        )
+        is None
+    )
+    # A different number in the same sentence is still checked.
+    mixed = "Your 80,000 tasks exceed the 40,000 tasks limit."
+    assert (
+        claims.typed_check(mixed, entitlements={}, spans=span, reported="about 80,000 tasks").verdict == "contradicted"
+    )
+
+
+def test_help_excerpts_are_plain_text():
+    from relayops.services.help import plain_excerpt
+
+    md = "## Page 1\n\n| Plan | Rows |\n| --- | --- |\n| Business | 250,000 |\n\n**Use** `Prepare in background`."
+    assert plain_excerpt(md) == "Page 1 Plan · Rows Business · 250,000 Use Prepare in background."

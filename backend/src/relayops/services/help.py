@@ -3,6 +3,7 @@ contact support with the context carried over. Each step is recorded as a produc
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, cast
 
@@ -13,6 +14,21 @@ from relayops.models import DocumentVersion, KnowledgeDocument
 from relayops.repositories import scoped
 from relayops.services import events, experiments, retrieval
 from relayops.services import tickets as ticket_service
+
+
+def plain_excerpt(text: str, limit: int = 280) -> str:
+    """Readable preview of Markdown: no heading markers, table pipes, separator rows, or emphasis marks."""
+    lines = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or re.fullmatch(r"[|:\-\s]+", line):
+            continue
+        line = re.sub(r"^#{1,6}\s*", "", line)
+        if line.startswith("|"):
+            line = " · ".join(c.strip() for c in line.strip("|").split("|") if c.strip())
+        lines.append(re.sub(r"[*_`]{1,3}", "", line))
+    out = " ".join(lines)
+    return out if len(out) <= limit else out[: limit - 1].rsplit(" ", 1)[0] + "…"
 
 
 def _customer(p: Principal) -> None:
@@ -51,7 +67,7 @@ def search(db: Session, p: Principal, q: str) -> dict[str, Any]:
                 "document_id": h["document_id"],
                 "title": h["title"],
                 "kind": h["kind"],
-                "excerpt": h["text"][:280],
+                "excerpt": plain_excerpt(h["text"]),
             }
     results = list(seen.values())[:5]
     events.for_principal(db, p, "help.searched", {"query": q, "results": len(results)})

@@ -143,7 +143,9 @@ def _numbers(text: str) -> list[tuple[float, str, str]]:
     return found
 
 
-def typed_check(sentence: str, *, entitlements: dict[str, Any], spans: dict[str, str]) -> Claim | None:
+def typed_check(
+    sentence: str, *, entitlements: dict[str, Any], spans: dict[str, str], reported: str = ""
+) -> Claim | None:
     """Deterministic verdicts where records settle them; None when no typed rule applies."""
     for key, rx in ENTITY.items():
         if rx.search(sentence) and key in entitlements and AVAILABLE.search(sentence):
@@ -157,7 +159,9 @@ def typed_check(sentence: str, *, entitlements: dict[str, Any], spans: dict[str,
                 "typed_entitlement",
                 detail=f"plan entitlement {key}={actual}; sentence says {'available' if says_available else 'not available'}",
             )
-    nums = _numbers(sentence)
+    # Numbers the customer stated (their project size, how many retries) restate the report, not a source.
+    from_customer = {(v, d) for v, d, _ in _numbers(reported)}
+    nums = [n for n in _numbers(sentence) if (n[0], n[1]) not in from_customer]
     if nums:
         for value, dim, raw in nums:
             same_dim = {eid: [(v, r) for v, d, r in _numbers(text) if d == dim] for eid, text in spans.items()}
@@ -260,7 +264,13 @@ def verifier() -> tuple[Any | None, dict[str, Any]]:
 
 
 def check_reply(
-    reply: str, *, entitlements: dict[str, Any], spans: dict[str, str], provider: Any | None, timeout: float = 30.0
+    reply: str,
+    *,
+    entitlements: dict[str, Any],
+    spans: dict[str, str],
+    provider: Any | None,
+    timeout: float = 30.0,
+    reported: str = "",
 ) -> list[Claim]:
     out = []
     for s in sentences(reply):
@@ -268,7 +278,7 @@ def check_reply(
         if kind in ("social", "request"):
             out.append(Claim(s, kind, "not_a_claim", "none"))
             continue
-        typed = typed_check(s, entitlements=entitlements, spans=spans)
+        typed = typed_check(s, entitlements=entitlements, spans=spans, reported=reported)
         if typed is not None:
             out.append(typed)
         elif kind == "hypothesis" and (provider is None or not spans):

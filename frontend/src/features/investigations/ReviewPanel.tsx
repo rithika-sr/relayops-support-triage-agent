@@ -212,7 +212,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
       </section>
 
       {p.missing_facts?.length || p.hypotheses?.length ? (
-        <section className="grid gap-3 text-sm sm:grid-cols-2">
+        <section className={`grid gap-3 text-sm ${p.missing_facts?.length && p.hypotheses?.length ? "sm:grid-cols-2" : ""}`}>
           {p.missing_facts?.length ? <div><h3 className="font-semibold">Still unknown</h3><ul className="mt-1 list-disc pl-5">{p.missing_facts.map((o, i) => <li key={i}>{label(o)}</li>)}</ul></div> : null}
           {p.hypotheses?.length ? <div><h3 className="font-semibold">Unconfirmed hypotheses</h3><ul className="mt-1 list-disc pl-5 text-muted">{p.hypotheses.map((o, i) => <li key={i}>{o}</li>)}</ul></div> : null}
         </section>
@@ -237,7 +237,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
       ) : null}
 
       {pending ? (
-        <div className="sticky bottom-0 -mx-5 flex flex-col gap-3 border-t border-line bg-card px-5 py-3">
+        <>
           <div className="rounded-md bg-sunken px-3 py-2 text-[13px]">
             <p className="font-medium">If you approve</p>
             <ul className="list-disc pl-5 text-muted">{consequences(proposal).map((c) => <li key={c}>{c}</li>)}</ul>
@@ -252,13 +252,16 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
             </label>
           ) : null}
           {err ? <Notice tone="danger">{err.detail}</Notice> : null}
+          {/* Only the decision buttons stay pinned, so they never cover the draft or the review status. */}
+          <div className="sticky bottom-0 -mx-5 flex flex-col gap-1.5 border-t border-line bg-card px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="primary" disabled={!!approveBlocked} busy={approve.isPending} onClick={() => approve.mutate()} title={approveBlocked ?? undefined}>{primaryLabel}</Button>
             <Button disabled={!dirty || !canReview} busy={edit.isPending} onClick={() => edit.mutate()}>Save edit as version {proposal.version + 1}</Button>
             <Button variant="danger" disabled={!canReview} busy={reject.isPending} onClick={() => reject.mutate()}>Reject</Button>
           </div>
           {approveBlocked ? <p className="text-[13px] text-muted">{approveBlocked}</p> : null}
-        </div>
+          </div>
+        </>
       ) : null}
     </div>
   );

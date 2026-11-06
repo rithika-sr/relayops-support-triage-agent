@@ -26,6 +26,8 @@ test("staff and customer screens at four widths", async ({ browser }) => {
     const ctx = await browser.newContext({ viewport: { width, height: heightFor(width) } });
     const page = await ctx.newPage();
     await signIn(page, ADMIN);
+    // Load the committed evaluation reports so Model quality shows measured runs, not an empty state.
+    await page.request.post("/api/evaluations/import", { headers: { "x-csrf-token": (await ctx.cookies()).find((c) => c.name === "relayops_csrf")?.value ?? "", origin: new URL(page.url()).origin } });
     await shot(page, "home", width);
     await page.goto("/app/inbox?queue=open&sort=priority");
     await shot(page, "inbox", width);

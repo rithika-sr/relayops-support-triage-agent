@@ -16,7 +16,14 @@ from sqlalchemy.orm import Session
 
 from relayops.agents import claims as claim_checks
 from relayops.domain.routes import ActionKind
-from relayops.models import ComponentOwner, CustomerAccount, EngineeringIssue, Incident, KnowledgeDocument
+from relayops.models import (
+    ComponentOwner,
+    CustomerAccount,
+    EngineeringIssue,
+    Incident,
+    KnowledgeDocument,
+    TicketMessage,
+)
 
 _ROOT_CAUSE = re.compile(
     r"\b(root cause (is|was)|was caused by|is caused by|caused by the (deploy|deployment|release|update)|"
@@ -60,6 +67,17 @@ _STOP = {
     "has",
     "not",
 }
+
+
+def _customer_text(db: Session, context: dict[str, Any]) -> str:
+    """What the customer wrote on this ticket; numbers in it are reported facts, not claims to check."""
+    tid = (context.get("ticket") or {}).get("id")
+    if not tid:
+        return ""
+    rows = db.execute(
+        select(TicketMessage.body).where(TicketMessage.ticket_id == tid, TicketMessage.author_kind == "customer")
+    ).scalars()
+    return "\n".join(rows)
 
 
 def _check(name: str, ok: bool | None, detail: str, method: str) -> dict[str, Any]:
@@ -261,6 +279,7 @@ def verify(
         spans=spans,
         provider=claim_provider,
         timeout=claim_timeout,
+        reported=_customer_text(db, context),
     )
     if claim_provider is None and claim_note:
         for cl in claim_results:

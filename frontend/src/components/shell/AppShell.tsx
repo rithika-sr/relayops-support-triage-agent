@@ -105,7 +105,8 @@ export function AppShell({ children, area }: { children: ReactNode; area: "staff
   return (
     <div className="min-h-screen">
       <InstanceBanner />
-      <div className="lg:flex">
+      {/* The sidebar column is painted on the wrapper so it stays continuous on long pages. */}
+      <div className="lg:flex lg:bg-[linear-gradient(to_right,var(--color-card)_calc(15rem-1px),var(--color-line)_calc(15rem-1px),var(--color-line)_15rem,transparent_15rem)]">
         <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-card px-3 py-4 lg:flex">
           <Link href="/app" className="mb-6 px-2"><Brand /></Link>
           {nav}
