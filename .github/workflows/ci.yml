@@ -1,0 +1,176 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  POSTGRES_PASSWORD: ci-postgres-password
+  RELAYOPS_DATABASE_URL: postgresql+psycopg://relayops:ci-postgres-password@127.0.0.1:5432/relayops
+  RELAYOPS_SESSION_SECRET: ci-session-secret-not-used-outside-ci
+  RELAYOPS_LLM_PROVIDER: fixture
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: relayops
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: relayops
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U relayops" --health-interval 3s --health-timeout 3s --health-retries 20
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+      - run: uv python install 3.12
+      - run: uv sync --frozen
+      - name: Lint and format
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: Types
+        run: uv run mypy
+      - name: Migrations apply to an empty database
+        run: uv run alembic upgrade head
+      - name: Tests (fixture provider; live-model tests are excluded and run only with make test-live)
+        run: uv run pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  eval-offline:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: relayops
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: relayops
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U relayops" --health-interval 3s --health-timeout 3s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+      - run: uv python install 3.12
+      - run: uv --directory backend sync --frozen
+      - name: Offline evaluation gates (dataset, rules baseline, challenge invariants, regression)
+        run: uv --directory backend run python ../evals/runners/run.py --profile offline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-offline-report
+          path: evals/results/offline-*
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    services:
+      db:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: relayops
+          POSTGRES_PASSWORD: ci-postgres-password
+          POSTGRES_DB: relayops
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U relayops" --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      RELAYOPS_FIXTURE_SCRIPT: generic
+      RELAYOPS_WEB_ORIGIN: http://localhost:3020
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.23"
+      - run: uv python install 3.12
+      - run: uv --directory backend sync --frozen
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      - name: Migrate and seed (fixture embeddings, labeled fixture-hash-v1)
+        run: |
+          uv --directory backend run alembic upgrade head
+          uv --directory backend run python -c "from relayops.agents.checkpoint import ensure_checkpointer_schema as e; e()"
+          uv --directory backend run python -m relayops.services.seed > /dev/null
+      - name: Start API, worker, and web
+        run: |
+          (cd backend && uv run uvicorn relayops.api.main:app --host 127.0.0.1 --port 8020 > ../api.log 2>&1 &)
+          (cd backend && uv run python -m relayops.workers.worker > ../worker.log 2>&1 &)
+          (cd frontend && npm run build > ../web-build.log 2>&1 && (npx next start -p 3020 > ../web.log 2>&1 &))
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:3020/api/health && break; sleep 2; done
+      - name: Browser journey (fixture provider; exercises runtime, review, and actions only)
+        working-directory: frontend
+        run: npx playwright test e2e/journey.spec.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-artifacts
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+            *.log
+
+  repo-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secrets, local-only files, and documentation links
+        run: python3 scripts/check_repo.py
+      - name: Commit metadata has no AI co-author or generated-by trailers
+        run: |
+          if git log --format='%B' | grep -iE '^(co-authored-by:.*(claude|anthropic|openai|copilot)|generated (with|by) )'; then
+            echo "found AI attribution trailer"; exit 1
+          fi
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -f infra/docker/backend.Dockerfile -t relayops-backend:ci .
+      - name: Build frontend image
+        run: docker build -f infra/docker/frontend.Dockerfile -t relayops-web:ci .
+      - name: Smoke the backend image imports
+        run: docker run --rm relayops-backend:ci uv run --no-sync python -c "import relayops.api.main, relayops.workers.worker; print('ok')"
