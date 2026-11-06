@@ -97,16 +97,24 @@ def main() -> int:
         raise SystemExit(f"run failed: {detail['run'].get('error')}")
     prop = next(p for p in detail["proposals"] if p["status"] == "pending_review")
 
-    edited_text = prop["payload"]["customer_reply"].rstrip() + (
-        "\n\nIf you need the data before then, choose Export > Prepare in background; the download link is emailed.")
+    # Scripted reviewer (stands in for a person; no human reviewed this run): remove every sentence the
+    # verification marked contradicted, then add the documented workaround in the reviewer's own words.
+    removed = [c["text"] for c in prop["verification"]["claims"] if c["verdict"] == "contradicted"]
+    kept = prop["payload"]["customer_reply"]
+    for sentence in removed:
+        kept = kept.replace(sentence, "")
+    edited_text = " ".join(kept.split()).strip() + (
+        "\n\nIf you need the data now, choose Export > Prepare in background; the download link is emailed.")
     v2 = support.call("POST", f"/proposals/{prop['id']}/edit", {
         "customer_reply": edited_text, "expected_version": prop["version"],
-        "note": "Added the background-export workaround."})
+        "note": "Removed sentences verification marked contradicted; added the background-export workaround."})
     approve_body: dict[str, Any] = {"expected_version": v2["version"], "expected_payload_hash": v2["payload_hash"],
                                     "note": "Checked against ENG-101 and the export article."}
     uncertain = v2["verification"].get("uncertain_claims", 0)
     if uncertain:
         approve_body["acknowledge_uncertain_claims"] = True
+    if v2["verification_status"] != "passed":
+        raise SystemExit(f"edited version still fails {v2['verification']['failed']}; not approving (by design)")
     approved = support.call("POST", f"/proposals/{v2['id']}/approve", approve_body)
     final = wait(support, run["id"], ("completed", "failed", "rejected"))
     customer_view = cust.call("GET", f"/tickets/{created['id']}")
@@ -177,8 +185,14 @@ Status: **{prop["verification_status"]}**. Claim verifier: `{json.dumps(prop["ve
 
 ## 4. The reviewer edits, then approves the exact version
 
-The edit added one sentence and created version {v2["version"]} (status `{v2["verification_status"]}`). Human text is
-checked with typed rules only; the semantic verifier does not run on it:
+**Who acted:** the reviewer steps below were performed by the capture script on behalf of a support user; no human
+reviewed this draft. The script removed the {len(removed)} sentence(s) verification marked contradicted:
+
+{chr(10).join(f"- ~~{t}~~" for t in removed) or "- (none)"}
+
+and appended one sentence about the documented workaround. That created version {v2["version"]} (status
+`{v2["verification_status"]}`). Edited text is checked with typed rules only; the semantic verifier does not run on
+human-authored text:
 
 | Sentence | Kind | Verdict | Method |
 | --- | --- | --- | --- |
