@@ -24,6 +24,8 @@ test("operational first run: empty, no sample data, no banner", async ({ browser
       await page.waitForLoadState("networkidle");
       await expect(page.getByText(/Demo instance/)).toHaveCount(0);
       await expect(page.getByText(/^Loading/)).toHaveCount(0, { timeout: 20_000 });
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, `${name} at ${width}px scrolls horizontally`).toBeLessThanOrEqual(0);
       await page.screenshot({ path: `${OUT}/${name}-${width}.png`, fullPage: width >= 1280 });
     }
     await ctx.close();

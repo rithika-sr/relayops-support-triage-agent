@@ -24,9 +24,17 @@ export function PortalHome() {
       <PageHeader title="Support" subtitle={`${me.data?.customer_account?.name ?? ""} · replies from TaskFlow support appear here after review`} />
       {active.length ? (
         <div role="status" className="rounded-lg border border-warn-100 bg-warn-50 px-4 py-3 text-sm">
-          {active.map((i) => (
+          {active.slice(0, 2).map((i) => (
             <p key={i.id}><span className="font-medium text-warn-700">{i.title}:</span> {i.public_summary}</p>
           ))}
+          {active.length > 2 ? (
+            <details className="mt-1">
+              <summary className="cursor-pointer text-warn-700">{active.length - 2} more active incident{active.length - 2 === 1 ? "" : "s"}</summary>
+              {active.slice(2).map((i) => (
+                <p key={i.id} className="mt-1"><span className="font-medium text-warn-700">{i.title}:</span> {i.public_summary}</p>
+              ))}
+            </details>
+          ) : null}
         </div>
       ) : null}
       <GettingStarted />

@@ -72,7 +72,7 @@ export function ButtonLink({ href, children, variant = "secondary", className }:
 
 export function Card({ children, className, title, actions, padded = true }: { children: ReactNode; className?: string; title?: ReactNode; actions?: ReactNode; padded?: boolean }) {
   return (
-    <section className={cx("rounded-xl border border-line bg-card shadow-[var(--shadow-raised)]", className)}>
+    <section className={cx("min-w-0 rounded-xl border border-line bg-card shadow-[var(--shadow-raised)]", className)}>
       {title ? (
         <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3">
           <h2 className="text-[15px] font-semibold">{title}</h2>

@@ -85,7 +85,7 @@ def account_block(ctx: dict[str, Any]) -> str:
     return (
         f"Trusted account facts: plan={a['plan']}, account product_version={a['product_version']}, "
         f"entitlements={_j(a['entitlements'])}, first_response_due_at={ctx['target']['due_at']} "
-        f"(policy {ctx['policy_version']}, 24/7 elapsed hours)."
+        f"(policy {ctx['policy_version']}, {(ctx['target'].get('policy') or {}).get('basis', '24/7 elapsed hours')})."
     )
 
 

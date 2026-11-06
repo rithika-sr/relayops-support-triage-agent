@@ -63,10 +63,13 @@ def health(p: Principal = Depends(staff_principal), db: Session = DB) -> dict[st
 
 
 @router.get("/policy")
-def policy(p: Principal = Depends(current_principal)) -> dict[str, Any]:
+def policy(p: Principal = Depends(current_principal), db: Session = DB) -> dict[str, Any]:
+    cur = calendar_service.active(db, p.organization_id)
     return {
         "policy_version": policies.POLICY_VERSION,
-        "basis": "24/7 elapsed hours (no business-hours calendar)",
+        "basis": f"service hours under {cur[0].ref} ({cur[0].timezone}); urgent stays 24/7 unless the calendar opts in"
+        if cur
+        else "24/7 elapsed hours (no service calendar is active; set one under Settings > Service hours)",
         "first_response_hours": policies.FIRST_RESPONSE_HOURS,
         "entitlements": policies.ENTITLEMENTS,
     }

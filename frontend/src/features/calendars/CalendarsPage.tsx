@@ -76,16 +76,16 @@ export function CalendarsPage() {
             <fieldset className="flex flex-col gap-2" disabled={!isAdmin}>
               <legend className="mb-1 text-sm font-medium">Weekly hours</legend>
               {DAYS.map((d) => (
-                <div key={d} className="flex flex-wrap items-center gap-2 text-sm">
+                <div key={d} className="flex flex-wrap items-center gap-2 text-sm sm:flex-nowrap">
                   <label className="flex w-32 items-center gap-2">
                     <input type="checkbox" checked={h[d].open} onChange={(e) => setHours({ ...h, [d]: { ...h[d], open: e.target.checked } })} />
                     {DAY_NAMES[d]}
                   </label>
                   {h[d].open ? (
                     <>
-                      <Input aria-label={`${DAY_NAMES[d]} opens`} type="time" value={h[d].start} onChange={(e) => setHours({ ...h, [d]: { ...h[d], start: e.target.value } })} className="w-32" />
+                      <Input aria-label={`${DAY_NAMES[d]} opens`} type="time" value={h[d].start} onChange={(e) => setHours({ ...h, [d]: { ...h[d], start: e.target.value } })} className="w-36! shrink-0" />
                       <span className="text-muted">to</span>
-                      <Input aria-label={`${DAY_NAMES[d]} closes`} type="time" value={h[d].end} onChange={(e) => setHours({ ...h, [d]: { ...h[d], end: e.target.value } })} className="w-32" />
+                      <Input aria-label={`${DAY_NAMES[d]} closes`} type="time" value={h[d].end} onChange={(e) => setHours({ ...h, [d]: { ...h[d], end: e.target.value } })} className="w-36! shrink-0" />
                     </>
                   ) : <span className="text-muted">closed</span>}
                 </div>

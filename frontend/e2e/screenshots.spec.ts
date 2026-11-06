@@ -17,7 +17,13 @@ async function shot(page: Page, name: string, width: number) {
   await page.waitForLoadState("networkidle");
   await expect(page.getByText(BANNER).first()).toBeVisible();
   await expect(page.getByText(/^Loading/)).toHaveCount(0, { timeout: 20_000 });
-  await page.screenshot({ path: `${OUT}/${name}-${width}.png`, fullPage: width >= 1280 });
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow, `${name} at ${width}px scrolls horizontally by ${overflow}px`).toBeLessThanOrEqual(0);
+  const full = width >= 1280 && name !== "evaluations"; // the per-case table makes that page very long
+  // A full-page capture would draw sticky bars at their viewport position, over the content below them.
+  const style = full ? await page.addStyleTag({ content: ".sticky { position: static !important; }" }) : null;
+  await page.screenshot({ path: `${OUT}/${name}-${width}.png`, fullPage: full });
+  if (style) await style.evaluate((el) => (el as HTMLElement).remove());
 }
 
 test("staff and customer screens at four widths", async ({ browser }) => {
@@ -57,6 +63,12 @@ test("staff and customer screens at four widths", async ({ browser }) => {
       ["settings", "/app/settings"], ["integrations", "/app/settings/integrations"], ["service-hours", "/app/settings/service-hours"],
     ] as const) {
       await page.goto(path);
+      if (name === "evaluations") {
+        const report = page.getByRole("button", { name: /full-\d{8}T\d{6}/ }).first();
+        await report.waitFor({ timeout: 15_000 });
+        await report.click();
+        await expect(page.getByText(/Baseline comparison/)).toBeVisible();
+      }
       await shot(page, name, width);
     }
     const pdfDoc = await page.request.get("/api/knowledge").then((r) => r.json())
