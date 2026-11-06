@@ -1,71 +1,270 @@
 # RelayOps
 
-RelayOps is a local-first support-to-engineering operations app. A customer reports a problem in a portal; a support
-operator launches a bounded investigation that runs on a local model; the agent gathers authorized evidence with
-typed read tools, proposes a route and a customer reply or engineering handoff, and pauses for human review. The
-reviewer edits or approves an exact version, the approved action runs once, and every step stays inspectable.
+RelayOps is a local-first support operations app for a B2B software company. **Customers** report problems and
+find answers in a portal. **Support staff** triage an inbox, run bounded investigations on a local model, and review
+every customer-facing draft before it is sent. **Engineering** gets handoffs with the evidence attached. **Customer
+Success** sees adoption, friction, and retention computed from what customers actually did.
 
-This is a **local alpha**. All companies, tickets, documents, and metrics in the demo world are synthetic.
-Approved actions are local to the app: an approved reply becomes a customer-visible message in RelayOps (not an
-email), and an approved handoff creates or links a local engineering record (not a GitHub or Jira write).
+It is a **local alpha** that runs on one machine (Postgres, a Python API and worker, a Next.js web app, Ollama).
+Nothing is deployed publicly. A fresh install is an empty operational instance; the synthetic demo world lives in a
+separate database with a banner on every page.
 
-## What it does
+[![Support inbox in the demo instance](docs/images/inbox-1440.png)](docs/screenshots.md)
 
-- **Account-aware investigation.** One LangGraph workflow (load context, extract, adaptive investigation, propose,
-  draft reply, verify, review interrupt, act, record outcome) runs on `qwen3:4b-instruct` through Ollama with
-  schema-constrained JSON. Code enforces 4 investigation turns, 6 read-tool calls, one repair attempt, bounded
-  outputs, and a wall-clock deadline.
-- **Six typed read tools.** `search_knowledge`, `find_similar_cases`, `search_engineering_issues`,
-  `get_incident_snapshot`, `get_recent_deployments`, `get_error_aggregates`. Scope comes from a server-built trusted
-  context; argument schemas forbid extra fields, so the model cannot pick a tenant, account, role, or destination.
-- **Evidence and verification.** Each observation is stored with its source version, content hash, and snapshot
-  hash. Deterministic checks cover provenance, visibility, source currency, plan entitlements, internal identifiers,
-  causal and outage claims, and issue/incident links. Lexical overlap is shown as a signal and labeled as not
-  semantic proof.
-- **Version-bound review.** Approval binds organization and account, reviewer, ticket revision, proposal version,
-  action, destination, payload hash, evidence hash, and policy version. Edits create a new version; a new customer
-  message makes older drafts stale; execution rechecks the binding.
-- **Durable runtime.** Postgres holds domain data, pgvector embeddings, LangGraph checkpoints, sequenced run events,
-  leased jobs, proposals, reviews, the action ledger, and the outbox. A crashed worker resumes from the last
-  checkpoint; a per-run advisory lock prevents concurrent advancement.
-- **Diagnostics and incidents.** Synthetic deployments and hourly error aggregates feed a timestamped evidence
-  timeline that separates customer reports, trusted records, computed signals, and hypotheses. Incident
-  constellations group tickets by component, signature, version, and time window with distinct-account counts and
-  require review before they become incidents.
-- **Playbooks, artifacts, replay.** Four typed playbooks (how-to, bug, feature, incident) run on the same runtime.
-  Artifacts keep immutable versions with hashes and verification state and export as Markdown or JSON. Recorded
-  replay re-presents a finished run without executing anything; a comparison run is new and needs fresh review.
-- **Evaluation.** 180 labeled synthetic cases split by root family, a separate challenge suite, and runners for
-  rules/lexical, single-pass RAG, and the bounded agent. Results report denominators and leave unrun cases unrun.
+<sub>Support inbox in the demo instance (synthetic data; note the banner). More in the [gallery](docs/screenshots.md).</sub>
 
-## Architecture at a glance
+## Features and status
 
-```
-browser ──> Next.js (3020) ──/api rewrite──> FastAPI (8020) ──> services ──> scoped repositories ──> Postgres+pgvector (5440)
-                                                   │                                   ▲
-                                                   └── jobs ──> worker ── LangGraph ───┘── checkpoints, events, ledger
-                                                                   └── Ollama (11434): qwen3:4b-instruct, embeddinggemma
-```
+| Area | What exists | Status |
+| --- | --- | --- |
+| Intake | Portal, staff entry, CSV/JSON import (dry run, commit by file hash), HMAC-signed webhook with receipts and replay protection | Implemented, tested |
+| Inbox | Queues, URL filters, sorting, saved views, assignment, bulk status/priority/assignee (never bulk replies) | Implemented, tested |
+| Targets | Plan and priority targets, 24/7 or service hours from a versioned calendar (IANA zone, holidays, DST) | Implemented, tested |
+| Investigation | LangGraph on `qwen3:4b-instruct`: trusted lookups, then a policy-decided route (selective) or up to six read-only tool calls (adaptive) | Implemented; quality measured below |
+| Verification | Provenance, visibility, currency, policy rules; claim classification, typed checks, a local model estimate of support | Implemented; calibration measured below |
+| Review and actions | Version-bound approval, re-verified edits, uncertain-claim acknowledgment, one-time action ledger, outbox | Implemented, tested |
+| Claim labels | Immutable human labels bound to claim text, import/export, disagreement handling | Implemented; **no human labels recorded yet** |
+| Customer Help | Search current public articles, feedback, contact support with context; Getting started list | Implemented, tested |
+| Customer Success | Account adoption and friction, cohort retention (pending until reachable), rule-based opportunities, experiments | Implemented; demo data predates event tracking, so activity is honestly sparse |
+| Knowledge | Markdown, text, and PDF (text layer or tesseract OCR per page), versions, lexical/dense/hybrid retrieval | Implemented, tested |
+| Exports | Tickets CSV; artifacts as Markdown, JSON, or PDF through a fixed template | Implemented, tested |
+| MCP | Read-only endpoint at `/mcp/` (official SDK, streamable HTTP) for `mcp:read` tokens | Implemented; tested with the SDK client |
+| GitHub Issues | Mirror approved handoffs; local contract-test profile, opt-in `api.github.com` profile with a repository allowlist | Implemented; **not yet exercised against real GitHub** |
+| Operations | Liveness/readiness, JSON logs with request IDs, graceful worker shutdown, several workers per queue, backup and restore check | Implemented, tested |
 
-Routers call services; services enforce rules and transactions; repositories apply organization and customer-account
-scope to every query; agent tools call the same services. See [docs/architecture.md](docs/architecture.md).
+## Run it
 
-## Quick start
+Prerequisites: macOS or Linux, Docker, [uv](https://docs.astral.sh/uv/), Node 24, [Ollama](https://ollama.com), and
+`tesseract` for scanned PDFs (`brew install tesseract` or `apt install tesseract-ocr`).
 
-Prerequisites: macOS or Linux, Docker, [uv](https://docs.astral.sh/uv/), Node 24, and [Ollama](https://ollama.com).
+**Operational instance** (your real data; starts empty):
 
 ```bash
-make setup                       # .env with fresh secrets, Python 3.12 env, npm deps, Postgres, migrations
+make setup                 # .env with fresh secrets, Python env, npm deps, Postgres, empty operational database
 ollama pull qwen3:4b-instruct
 ollama pull embeddinggemma
-make seed                        # synthetic world + demo logins in .local/demo-credentials.json (git-ignored)
-make dev                         # API :8020, worker, web :3020
-make demo                        # health check and walkthrough
+make dev                   # API :8020, worker, web :3020
 ```
 
-Open http://localhost:3020 and sign in with an account from `.local/demo-credentials.json`:
-`admin@relayops.local`, `support@relayops.local`, or `customer@northstar.local`. Passwords are generated on first
-seed and stored hashed in the database; they are never committed or shown in the UI.
+Open http://localhost:3020/register to create your organization, then add customer accounts under Settings. Tickets
+arrive from the portal (invite customer users), staff entry, imports, or a signed webhook. Nothing is seeded, the
+fixture model provider is refused, and analytics count only operational records.
+
+**Demo instance** (synthetic sample data, separate database):
+
+```bash
+make seed-demo             # creates and seeds the demo database; refuses an operational one
+make demo-dev              # API :8030, worker, web :3030, with a sample-data banner on every page
+```
+
+Demo sign-ins are written to `.local/demo-credentials.json` (git-ignored, generated per install). See the
+[demo walkthrough](docs/demo.md).
+
+## A worked example
+
+[docs/worked-example.md](docs/worked-example.md) follows one ticket through the demo instance on the real local
+model: the portal report, the run's trusted lookups and tool calls, the draft and its claim verdicts, the reviewer's
+edit and approval, the action receipt, and what the customer sees. It is generated by `scripts/worked_example.py`
+from API responses, with the code revision and model recorded.
+
+## Measured quality
+
+All numbers come from committed reports in [`evals/results/`](evals/results/); methodology, per-category tables, and
+the traced causes of each failure are in [docs/evaluation.md](docs/evaluation.md). Cases are synthetic and
+author-written; each system ran the 147 dev and validation cases (126 main + 21 hard). The 63 test cases per system
+are frozen and have not been run. **rules uses no generation model**; the others use local `qwen3:4b-instruct`.
+
+**Routing, final runtime** (run 4 at `b45a4fe`, the declared final measurement):
+
+| System | Main set (126) | Hard slice (21) | Latency p50 | Notes |
+| --- | --- | --- | --- | --- |
+| rules (no model) | 122 (0.97) | 6 (0.29) | < 0.1 s | Routes on structured fields; the hard slice removes them |
+| rag (one retrieval, one call) | 74 (0.59) | 9 (0.43) | 4.6 s | Run 1; rag was not changed, so it was not re-run |
+| agent (adaptive path) | 98 (0.78) | 7 (0.33) | 31 s | 6.4 model calls per case |
+| hybrid (selective path) | *run in progress* | *run in progress* | | Policy rules decide when records settle the route |
+
+**How the agent got there.** The first broad run (run 1, before the fixes) measured the adaptive agent at 70/126 and
+5/21; incidents were 0/21 and new handoffs 1/21. Tracing the recorded runs found general causes, not model noise: a
+prompt that only said when to ask, trusted lookups the adaptive path never saw, error codes in free text that were
+never detected, a five-incident lookup cap, a playbook that could not link incidents, and a fallback that put vague
+tickets in the restricted security queue. Each fix has a regression test; gold labels and the rules and rag baselines
+were not changed. In run 4 the agent links 19/21 incidents (from 0) but handles 7/21 new handoffs (from 1, and 13 in
+an intermediate run), so the remaining gap to the rules baseline is mostly "is this a new engineering problem or do I
+need to ask?" on reports the records do not settle.
+
+**Other measures** (run 1, all 147 cases): forbidden-claim drafts rules 0, rag 8, agent 0, hybrid 0; cited-source
+provenance validity rag 0.79, agent 1.00, hybrid 1.00; challenge suite (cross-tenant, injection, unverified P1,
+security, obsolete case, version trap): no unsafe draft passed verification.
+
+**Claim checks** (52 synthetic claims, labels drafted with AI assistance): on the held-out validation split, typed
+rules decided 6 of 24 (5 correct) and the local verifier 18 (17 correct), catching 5 of 6 contradictions with one false
+"supported". These are model estimates, not human review; **human claim review is pending** (no human labels exist).
+
+
+## Architecture
+
+Routers call services; services own transactions and rules; repositories apply organization and customer-account
+scope to every query; agent tools call the same services, so the model never chooses a tenant, account, or
+destination. Seven views follow (expand each); details and supplementary diagrams are in
+[docs/diagrams.md](docs/diagrams.md), and decisions in fifteen [ADRs](docs/adr/).
+
+<details>
+<summary><b>1. System context</b></summary>
+
+```mermaid
+flowchart TB
+  Customer(["Customers (portal)"]) -- "tickets, Help, approved replies" --> RO
+  Staff(["Support, engineering, CS (staff app)"]) -- "triage, review, approve" --> RO
+  Sender(["Other system"]) -- "HMAC-signed webhook, imports" --> RO
+  MCPc(["MCP client"]) -- "read-only token" --> RO
+  RO["RelayOps (operational or demo instance)"] -- "extraction, routing, drafts, claim checks, embeddings" --> Model["Ollama on the same machine"]
+  RO -. "approved handoffs" .-> GH["Tracker: loopback test service, or opt-in allow-listed api.github.com"]
+```
+
+</details>
+
+<details>
+<summary><b>2. Components and containers</b></summary>
+
+```mermaid
+flowchart LR
+  B[Browser] --> W[Next.js 16]
+  W -- "/api rewrite" --> A[FastAPI: routers, services, scoped repositories]
+  A --> D[(Postgres 17 + pgvector)]
+  M["Read-only MCP /mcp/"] --> A
+  K[Worker: LangGraph + outbox] --> D
+  K --> O[Ollama]
+  A -- embeddings --> O
+  K -. "loopback or allow-listed api.github.com" .-> G[Tracker]
+```
+
+</details>
+
+<details>
+<summary><b>3. Agent state flow</b></summary>
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> load_context
+  load_context --> extract
+  extract --> precheck
+  precheck --> propose: selective and a policy rule decides
+  precheck --> investigate: adaptive, or no rule decides
+  investigate --> investigate: next tool call
+  investigate --> propose
+  propose --> draft_reply
+  draft_reply --> verify
+  verify --> review
+  review --> review: edit (new version)
+  review --> act: approved exact version
+  review --> audit_outcome: rejected
+  act --> audit_outcome
+  audit_outcome --> [*]
+```
+
+</details>
+
+<details>
+<summary><b>4. End-to-end sequence</b></summary>
+
+```mermaid
+sequenceDiagram
+  actor C as Customer
+  actor S as Reviewer
+  participant API
+  participant W as Worker
+  participant M as Local model
+  C->>API: file ticket
+  S->>API: start investigation
+  W->>M: extract, route or investigate, draft
+  W->>W: verify (checks, claim verdicts)
+  W->>API: proposal vN awaiting review
+  S->>API: edit or approve exact hash
+  W->>API: action once + customer message + outbox
+  C->>API: sees only the approved text
+```
+
+</details>
+
+<details>
+<summary><b>5. Entity relationships</b></summary>
+
+```mermaid
+erDiagram
+  ORGANIZATION ||--o{ CUSTOMER_ACCOUNT : has
+  CUSTOMER_ACCOUNT ||--o{ TICKET : opens
+  TICKET ||--o{ INVESTIGATION_RUN : investigated_by
+  INVESTIGATION_RUN ||--o{ PROPOSAL : drafts
+  PROPOSAL ||--o{ REVIEW : decided_by
+  PROPOSAL ||--o| ACTION_LEDGER : executes_once
+  PROPOSAL ||--o{ CLAIM_ANNOTATION : labeled_by
+  ORGANIZATION ||--o{ PRODUCT_EVENT : records
+  ORGANIZATION ||--o{ SERVICE_CALENDAR_VERSION : defines
+```
+
+</details>
+
+<details>
+<summary><b>6. Deployment and trust boundaries</b></summary>
+
+```mermaid
+flowchart LR
+  subgraph Host["One host you control"]
+    Web["Next.js :3020"] --> API["FastAPI :8020"]
+    API --> PG[("Postgres on 127.0.0.1:5440")]
+    Worker --> PG
+    Worker --> Ollama[":11434"]
+  end
+  Browser -- "session cookie + CSRF + Origin" --> Web
+  Sender -- "HMAC + 5-min window + receipts" --> API
+  MCPc["MCP client"] -- "bearer mcp:read" --> API
+```
+
+</details>
+
+<details>
+<summary><b>7. Adoption-event flow</b></summary>
+
+```mermaid
+flowchart LR
+  A["sign-in, ticket, approved reply,<br/>Help search, view, feedback, contact"] --> E[("product_events v1<br/>deduplicated by event_id")]
+  E --> F{"data class allowed?"}
+  F -- yes --> V["onboarding, adoption, retention,<br/>opportunities, experiments"]
+  F -- "demo / test / unknown" --> X["excluded and reported as excluded"]
+```
+
+</details>
+
+## Screens
+
+| | |
+| --- | --- |
+| [![Investigation](docs/images/investigation-1440.png)](docs/images/investigation-1440.png)<br/>Investigation: graph progress, route, and the draft under review | [![Review status](docs/images/review-1440.png)](docs/images/review-1440.png)<br/>Review: sources, policy, claim support, and human approval kept separate |
+| [![Portal Help](docs/images/portal-help-1440.png)](docs/images/portal-help-1440.png)<br/>Customer Help with contact-support carry-over | [![Operational first run](docs/images/op-home-1440.png)](docs/images/op-home-1440.png)<br/>A new operational organization: empty, no banner |
+
+Phone width (390 px):
+
+<img src="docs/images/inbox-390.png" alt="Inbox at 390 px" width="200"> <img src="docs/images/ticket-390.png" alt="Ticket at 390 px" width="200"> <img src="docs/images/portal-help-390.png" alt="Portal Help at 390 px" width="200">
+
+Every screen at 1440, 1280, 768, and 390 px is in the [gallery](docs/screenshots.md).
+
+## Security and data boundaries
+
+- Every query is scoped by organization, and customer queries by customer account; out-of-scope IDs return 404.
+- The model never chooses scope, destination, or effects: tools run with a server-built context, routes pass code
+  constraints, and nothing customer-visible happens before a person approves the exact version.
+- `data_class` and `source_kind` are set by the server. A demo or test record never counts in an operational
+  instance; the API and worker refuse to start when the configured mode does not match the database.
+- Secrets live in `.env` and `.local/` (git-ignored); connector secrets are encrypted at rest; MCP and API tokens are
+  stored as hashes. CI runs a full-history gitleaks scan and dependency audits. See [security](docs/security.md).
+
+## Supported deployment
+
+A single host you control, as in the commands above, or the container profile in
+[deployment](docs/deployment.md). Postgres binds to 127.0.0.1. There is no public hosting, high availability, or
+managed-database configuration, and no TLS termination is provided; put the web app behind your own HTTPS proxy
+and set `RELAYOPS_COOKIE_SECURE=true` before exposing it beyond localhost.
 
 ## Verification
 
@@ -73,32 +272,38 @@ seed and stored hashed in the database; they are never committed or shown in the
 | --- | --- |
 | `make test-offline` | ruff, mypy, pytest against real Postgres with the labeled fixture provider, ESLint, TypeScript, Vitest |
 | `make test-live` | Real Ollama: model presence, 768-d embeddings, structured output, a tool-driven run to review |
-| `make e2e` | Playwright journey against the running stack: portal ticket, investigation, edit, approve, customer sees reply |
+| `make e2e` | Playwright journey: portal ticket, investigation, edit, approve, customer sees the approved reply |
 | `make eval-offline` | Dataset validation, rules baseline, adversarial challenge invariants, regression gate |
-| `make eval-live-smoke` | Six demos plus one validation case per category for all three systems on the local model |
-| `make check-repo` | Secret patterns, tracked local-only files, documentation links |
+| `make eval-full` | Dev and validation cases for four systems on both datasets, on the local model (long-running, resumable) |
+| `make check-repo` | Secrets (exact allowlist, redacted output), local-only files, documentation links |
+| `make restore-check` | Restore the newest backup into a scratch database and report what it holds |
 
-CI runs backend, frontend, offline evaluation, a browser journey with the fixture provider, repository hygiene, and
-container builds. CI never calls a paid model and does not assess live model quality.
-
-## Documentation
-
-- [Architecture](docs/architecture.md) and [decisions](docs/adr/)
-- [Development](docs/development.md): setup, commands, test profiles, troubleshooting
-- [API](docs/api.md) and [security model](docs/security.md)
-- [Evaluation](docs/evaluation.md): methodology and measured results
-- [Demo walkthrough](docs/demo.md) and [deployment profiles](docs/deployment.md)
+CI runs the backend and frontend suites, offline evaluation gates, a fixture-backed browser journey (runtime
+behavior, not model quality), diagram rendering, gitleaks, dependency audits, and container builds.
 
 ## Limitations
 
-- Local alpha on synthetic data; not validated for production use.
-- A 4B local model makes routing and drafting mistakes; human review is required and is the semantic check.
-- Lexical overlap is not entailment; claim support is not verified automatically, and no human claim annotations
-  have been recorded yet.
-- Response targets use 24/7 elapsed hours; there is no business-hours calendar.
-- External connectors are disabled; a simulated adapter exists only for failure-mode tests.
-- Read-only MCP endpoint at `/mcp/` (streamable HTTP) for `mcp:read` tokens; see ADR 0008.
-- PDF ingestion and PDF export are not implemented.
+- **Synthetic data only.** No real customer has used RelayOps; every quality number comes from author-written
+  synthetic cases, and the test splits are still frozen and unrun.
+- **The 4B local model makes routing and drafting mistakes.** On cases the records do not decide, the adaptive path
+  is well below the rules baseline (see Measured quality), and the local claim verifier can call a wrong sentence
+  supported (the [worked example](docs/worked-example.md) shows one). Human review is the remaining semantic check.
+- **No human claim labels yet.** The labeling workflow exists; agreement statistics stay pending until people use it.
+  The calibration labels were drafted with AI assistance.
+- **GitHub is not verified against the real service.** The live profile is implemented and tested with a mock
+  transport only; using it needs an operator opt-in, an allow-listed repository, and a separately authorized test.
+  RelayOps sends no email.
+- **Customer Success views are only as rich as the recorded events.** The demo's sample tickets predate event
+  tracking, so its activity counts are honestly near zero.
+- **Single host.** No high availability, managed database, or TLS termination; MCP tokens do not expire; one service
+  calendar per organization.
+
+## Documentation
+
+[Architecture](docs/architecture.md) · [Diagrams](docs/diagrams.md) · [ADRs](docs/adr/) ·
+[Evaluation](docs/evaluation.md) · [Worked example](docs/worked-example.md) · [Gallery](docs/screenshots.md) ·
+[API](docs/api.md) · [Security](docs/security.md) · [Development](docs/development.md) ·
+[Deployment and operations](docs/deployment.md) · [Demo walkthrough](docs/demo.md)
 
 ## License
 
