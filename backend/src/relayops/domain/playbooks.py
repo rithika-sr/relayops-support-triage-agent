@@ -85,7 +85,13 @@ DEFAULT_PLAYBOOKS: dict[str, dict[str, Any]] = {
             "issue only when version and signature match; otherwise prepare a new engineering handoff. "
             "Timing near a deployment is correlation, not cause.",
             "allowed_tools": list(READ_TOOLS),
-            "allowed_routes": ["link_existing_issue", "new_engineering_handoff", "answer_draft", "clarification"],
+            "allowed_routes": [
+                "link_existing_issue",
+                "incident_link",
+                "new_engineering_handoff",
+                "answer_draft",
+                "clarification",
+            ],
             "max_turns": 4,
             "max_tool_calls": 6,
             "required_facts": ["product_version", "error_code"],

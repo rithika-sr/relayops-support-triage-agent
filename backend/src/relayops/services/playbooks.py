@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from relayops.core.security import content_hash
-from relayops.domain.playbooks import GRAPH_NODES, READ_TOOLS, PlaybookConfig
+from relayops.domain.playbooks import DEFAULT_PLAYBOOKS, GRAPH_NODES, READ_TOOLS, PlaybookConfig
 from relayops.domain.routes import Route
 from relayops.domain.scope import Principal, ValidationFailed
 from relayops.models import InvestigationRun, Playbook, PlaybookRevision
@@ -154,3 +154,31 @@ def save_revision(db: Session, p: Principal, key: str, config: dict[str, Any]) -
     )
     db.flush()
     return detail(db, p, key)
+
+
+def ensure_default_playbooks(db: Session, organization_id: str, created_by: str = "system") -> int:
+    """Create any missing default playbooks (revision 1) for an organization. Returns how many were created."""
+    made = 0
+    for key, spec in DEFAULT_PLAYBOOKS.items():
+        exists = db.execute(
+            select(Playbook.id).where(Playbook.organization_id == organization_id, Playbook.key == key)
+        ).first()
+        if exists:
+            continue
+        cfg = PlaybookConfig.model_validate(spec["config"]).model_dump(mode="json")
+        pb = Playbook(organization_id=organization_id, key=key, name=spec["name"], description=spec["description"])
+        db.add(pb)
+        db.flush()
+        db.add(
+            PlaybookRevision(
+                playbook_id=pb.id,
+                organization_id=organization_id,
+                revision=1,
+                config=cfg,
+                config_hash=content_hash(cfg),
+                created_by=created_by,
+            )
+        )
+        made += 1
+    db.flush()
+    return made

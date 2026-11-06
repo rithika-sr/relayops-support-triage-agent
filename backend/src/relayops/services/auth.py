@@ -121,6 +121,9 @@ def register_organization(
     db.flush()
     m = Membership(user_id=user.id, organization_id=org.id, role="admin")
     db.add(m)
+    from relayops.services import playbooks as playbook_service  # a new organization can investigate right away
+
+    playbook_service.ensure_default_playbooks(db, org.id)
     try:
         db.flush()
     except IntegrityError as exc:

@@ -213,3 +213,6 @@ def test_fresh_organization_can_add_an_account_and_take_a_real_ticket(db):
     detail = c.get(f"/api/tickets/{t.json()['ticket']['id']}").json()["ticket"]
     assert detail["data_class"] == "test" and detail["source_kind"] == "manual"  # the instance's class, set by server
     assert c.get("/api/overview").json()["open_tickets"] == 1
+    assert {pb["key"] for pb in c.get("/api/playbooks").json()} >= {"howto", "bug", "feature", "incident"}
+    run = c.post(f"/api/tickets/{t.json()['ticket']['id']}/investigations", json={"playbook_key": "bug"})
+    assert run.status_code == 201, run.text

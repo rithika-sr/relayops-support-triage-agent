@@ -14,7 +14,7 @@ from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
 from relayops.core.db import session_scope
 from relayops.domain.incidents import detect_signatures
-from relayops.domain.playbooks import PlaybookConfig, choose_default_playbook
+from relayops.domain.playbooks import DEFAULT_PLAYBOOKS, PlaybookConfig, choose_default_playbook
 from relayops.domain.policies import POLICY_VERSION
 from relayops.domain.scope import Conflict, Principal, ValidationFailed
 from relayops.models import InvestigationRun, Job, Playbook, PlaybookRevision, RunEvent, TicketMessage, new_id
@@ -37,6 +37,14 @@ def playbook_config(db: Session, organization_id: str, key: str) -> tuple[Playbo
     pb = db.execute(
         select(Playbook).where(Playbook.organization_id == organization_id, Playbook.key == key)
     ).scalar_one_or_none()
+    if pb is None and key in DEFAULT_PLAYBOOKS:
+        # Organizations created before playbooks were provisioned at registration get the defaults on first use.
+        from relayops.services import playbooks as playbook_service
+
+        playbook_service.ensure_default_playbooks(db, organization_id)
+        pb = db.execute(
+            select(Playbook).where(Playbook.organization_id == organization_id, Playbook.key == key)
+        ).scalar_one_or_none()
     if pb is None:
         raise ValidationFailed(f"unknown playbook '{key}'")
     rev = db.execute(

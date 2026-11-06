@@ -20,8 +20,7 @@ from sqlalchemy.orm import Session
 
 from relayops.agents.llm import Provider, get_provider
 from relayops.core.config import REPO_ROOT, get_settings
-from relayops.core.security import content_hash, hash_password, verify_password
-from relayops.domain.playbooks import DEFAULT_PLAYBOOKS, PlaybookConfig
+from relayops.core.security import hash_password, verify_password
 from relayops.domain.policies import decide_target
 from relayops.models import (
     ComponentOwner,
@@ -32,14 +31,13 @@ from relayops.models import (
     Incident,
     Membership,
     Organization,
-    Playbook,
-    PlaybookRevision,
     Ticket,
     TicketIssueLink,
     TicketMessage,
     User,
 )
 from relayops.services import knowledge
+from relayops.services import playbooks as playbook_service
 
 DATA = REPO_ROOT / "data"
 CREDENTIALS = REPO_ROOT / ".local" / "demo-credentials.json"
@@ -367,26 +365,7 @@ def seed(db: Session, provider: Provider | None = None, credentials_path: Path |
         if org.id == "org_taskflow":
             for t in history:
                 _seed_ticket(db, org.id, accounts[t["account"]], t, anchor, True, issues, staff)
-        for key, spec in DEFAULT_PLAYBOOKS.items():
-            pb = db.execute(
-                select(Playbook).where(Playbook.organization_id == org.id, Playbook.key == key)
-            ).scalar_one_or_none()
-            if pb is None:
-                cfg = PlaybookConfig.model_validate(spec["config"]).model_dump(mode="json")
-                pb = Playbook(organization_id=org.id, key=key, name=spec["name"], description=spec["description"])
-                db.add(pb)
-                db.flush()
-                db.add(
-                    PlaybookRevision(
-                        playbook_id=pb.id,
-                        organization_id=org.id,
-                        revision=1,
-                        config=cfg,
-                        config_hash=content_hash(cfg),
-                        created_by="seed",
-                    )
-                )
-        db.flush()
+        playbook_service.ensure_default_playbooks(db, org.id, created_by="seed")
 
     # Knowledge documents and approved historical case summaries.
     folder_org = {"taskflow": "org_taskflow", "quillstack": "org_quillstack"}

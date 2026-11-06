@@ -266,3 +266,34 @@ def test_signature_lookup_finds_incidents_beyond_the_browsing_limit(db, tmp_path
         _, d = _decide(s, account="acct_northstar", version="2.5", code="SAML_IDP_TIMEOUT")
     assert len(browsing) == 5 and all(i["error_signature"] != "SAML_IDP_TIMEOUT" for i in browsing)
     assert d.route == "incident_link" and d.incident["id"] == "inc_saml_idp"
+
+
+def test_bug_playbook_can_link_a_reviewed_incident_but_not_without_one(db, tmp_path):
+    """A failure report with an error code gets the bug playbook; it must be able to link a matching incident."""
+    seeded(db, tmp_path)
+    bug = DEFAULT_PLAYBOOKS["bug"]["config"]["allowed_routes"]
+    with new_session() as s:
+        facts = policy.gather(
+            s,
+            organization_id="org_taskflow",
+            customer_account_id="acct_northstar",
+            as_of=utcnow(),
+            component="sso",
+            version="2.5",
+            error_code="SAML_IDP_TIMEOUT",
+            text="",
+            entitlements=entitlements_for("business"),
+        )
+        near = policy.gather(
+            s,
+            organization_id="org_taskflow",
+            customer_account_id="acct_northstar",
+            as_of=utcnow(),
+            component="exports",
+            version="2.4",
+            error_code="EXPORT_500",
+            text="",
+            entitlements=entitlements_for("business"),
+        )
+    assert policy.decide(facts, restricted=False, allowed_routes=bug).route == "incident_link"
+    assert policy.decide(near, restricted=False, allowed_routes=bug).route == "link_existing_issue"  # no incident
