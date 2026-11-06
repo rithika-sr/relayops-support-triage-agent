@@ -88,8 +88,8 @@ eval-offline:     ## Dataset validation, rules baseline, challenge invariants, r
 eval-live-smoke:  ## Six demos + one validation case per category, rules/rag/agent on the local model
 	$(UV) run python ../evals/runners/run.py --profile live-smoke
 
-eval-full:        ## Full benchmark (dev+validation, all systems); long-running; test split stays frozen
-	$(UV) run python ../evals/runners/run.py --profile full --systems rules,rag,agent
+eval-full:        ## Full benchmark (dev+validation, four systems, both datasets); long-running; resumable; test split frozen
+	$(UV) run python ../evals/runners/run.py --profile full --systems rules,rag,agent,hybrid --dataset both
 
 screenshots:      ## Capture docs/images from the running app
 	cd frontend && SCREENSHOTS=1 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test e2e/screenshots.spec.ts

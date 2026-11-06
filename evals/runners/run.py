@@ -52,7 +52,9 @@ def _setup_env(profile: str) -> None:
 
     base = os.environ.get("RELAYOPS_DATABASE_URL") or Settings().database_url
     # Separate databases per provider so the dense index always matches the embedding model in use.
-    name = "relayops_eval_offline" if profile == "offline" else "relayops_eval"
+    name = "relayops_eval_offline" if profile == "offline" else os.environ.get("RELAYOPS_EVAL_DB_NAME", "relayops_eval")
+    if not name.replace("_", "").isalnum() or not name.startswith("relayops_eval"):
+        raise SystemExit("RELAYOPS_EVAL_DB_NAME must start with relayops_eval and use letters, digits, or underscores")
     os.environ["RELAYOPS_DATABASE_URL"] = base.rsplit("/", 1)[0] + "/" + name
     os.environ["RELAYOPS_WORLD_ANCHOR"] = ""
     os.environ["RELAYOPS_DATA_MODE"] = "test"  # evaluation databases hold test fixtures only  # fixed anchor from world.json for reproducible as-of times
