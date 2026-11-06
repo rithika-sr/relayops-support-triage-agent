@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, and_, func, or_, select
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from relayops.core.clock import utcnow
 from relayops.domain.policies import COMPONENTS, PRIORITIES, decide_target, entitlements_for, target_state
 from relayops.domain.scope import AccessDenied, Principal, ValidationFailed
-from relayops.models import CustomerAccount, InvestigationRun, Proposal, Ticket, TicketMessage
+from relayops.models import CustomerAccount, InvestigationRun, Organization, Proposal, Ticket, TicketMessage
 from relayops.repositories import scoped
 from relayops.services import audit
 
@@ -30,6 +30,12 @@ class TicketInput:
     error_code: str | None = None
     customer_account_id: str | None = None
     external_event_id: str | None = None
+    # Server-set provenance. API request models do not expose these fields.
+    source_kind: str | None = None
+    source_system: str | None = None
+    source_connection_id: str | None = None
+    import_batch_id: str | None = None
+    source_event_at: datetime | None = None
 
 
 def _clean(inp: TicketInput) -> TicketInput:
@@ -51,6 +57,11 @@ def _clean(inp: TicketInput) -> TicketInput:
         error_code=(inp.error_code or "").strip()[:80] or None,
         customer_account_id=inp.customer_account_id,
         external_event_id=(inp.external_event_id or "").strip()[:120] or None,
+        source_kind=inp.source_kind,
+        source_system=inp.source_system,
+        source_connection_id=inp.source_connection_id,
+        import_batch_id=inp.import_batch_id,
+        source_event_at=inp.source_event_at,
     )
 
 
@@ -86,7 +97,17 @@ def create_ticket(db: Session, p: Principal, raw: TicketInput) -> tuple[Ticket, 
         ).scalar_one()
         + 1
     )
+    org = db.get(Organization, p.organization_id)
+    data_class = org.data_class if org else "unknown"
+    source_kind = inp.source_kind or ("manual" if p.is_staff else "portal")
     ticket = Ticket(
+        data_class=data_class,
+        source_kind=source_kind,
+        source_system=inp.source_system,
+        source_connection_id=inp.source_connection_id,
+        import_batch_id=inp.import_batch_id,
+        source_event_at=inp.source_event_at,
+        received_at=now,
         organization_id=p.organization_id,
         customer_account_id=account.id,
         number=number,
@@ -108,6 +129,8 @@ def create_ticket(db: Session, p: Principal, raw: TicketInput) -> tuple[Ticket, 
     db.flush()
     db.add(
         TicketMessage(
+            data_class=data_class,
+            source_kind=source_kind,
             ticket_id=ticket.id,
             organization_id=p.organization_id,
             customer_account_id=account.id,
@@ -143,6 +166,8 @@ def add_message(db: Session, p: Principal, ticket_id: str, *, body: str, visibil
         raise ValidationFailed("staff replies to customers go through a reviewed proposal")
     now = utcnow()
     msg = TicketMessage(
+        data_class=ticket.data_class,
+        source_kind="portal" if not p.is_staff else "manual",
         ticket_id=ticket.id,
         organization_id=ticket.organization_id,
         customer_account_id=ticket.customer_account_id,

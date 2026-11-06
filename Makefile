@@ -3,8 +3,13 @@ SHELL := /bin/bash
 UV := uv --directory backend
 DOCKER_PATH := $(if $(shell command -v docker),,/Applications/Docker.app/Contents/Resources/bin:)
 export PATH := $(DOCKER_PATH)$(PATH)
+-include .env
+# The demo instance selects RELAYOPS_DEMO_DATABASE_URL inside the app config; no URL appears on command lines.
+DEMO_ENV := RELAYOPS_DATA_MODE=demo \
+	RELAYOPS_API_PORT=8030 RELAYOPS_WEB_PORT=3030 RELAYOPS_WEB_ORIGIN=http://localhost:3030 \
+	RELAYOPS_API_ORIGIN=http://localhost:8030
 
-.PHONY: setup up down migrate dev seed reset-db doctor test test-offline test-live e2e e2e-offline \
+.PHONY: setup up down migrate dev demo-migrate seed-demo demo-dev demo-reset doctor test test-offline test-live e2e e2e-offline \
         eval-offline eval-live-smoke eval-full screenshots demo lint build check-repo images
 
 setup:            ## Generate .env secrets, install pinned deps, start Postgres, migrate
@@ -13,7 +18,8 @@ setup:            ## Generate .env secrets, install pinned deps, start Postgres,
 	cd frontend && npm ci --no-audit --no-fund
 	cd frontend && PLAYWRIGHT_BROWSERS_PATH=0 npx playwright install chromium
 	$(MAKE) up
-	@echo "Next: ollama pull qwen3:4b-instruct && ollama pull embeddinggemma, then make seed && make dev"
+	@echo "Next: ollama pull qwen3:4b-instruct && ollama pull embeddinggemma, then make dev (empty operational instance)"
+	@echo "Optional labeled demo: make seed-demo && make demo-dev"
 
 up:               ## Start Postgres/pgvector (127.0.0.1:5440) and apply migrations
 	docker compose --env-file .env up -d --wait db
@@ -22,19 +28,34 @@ up:               ## Start Postgres/pgvector (127.0.0.1:5440) and apply migratio
 down:             ## Stop project containers (keeps the relayops_pgdata volume)
 	docker compose --env-file .env down
 
-migrate:
+migrate:          ## Create (if missing) and migrate the operational database; records its data mode
+	@python3 scripts/ensure_db.py RELAYOPS_DATABASE_URL
 	$(UV) run alembic upgrade head
 	$(UV) run python -c "from relayops.agents.checkpoint import ensure_checkpointer_schema as e; e()"
+	$(UV) run python -m relayops.core.instance
 
 dev:              ## Run API :8020, worker, and web :3020 natively
 	bash scripts/dev.sh
 
-seed:             ## Idempotently seed the synthetic world and demo logins (.local/demo-credentials.json)
-	$(UV) run python -m relayops.services.seed
+demo-migrate:     ## Create and migrate the separate demo database (data mode: demo)
+	@python3 scripts/ensure_db.py RELAYOPS_DEMO_DATABASE_URL
+	$(DEMO_ENV) $(UV) run alembic upgrade head
+	$(DEMO_ENV) $(UV) run python -c "from relayops.agents.checkpoint import ensure_checkpointer_schema as e; e()"
+	$(DEMO_ENV) $(UV) run python -m relayops.core.instance
 
-reset-db:         ## Drop and recreate the local demo database, then migrate and seed (destroys local demo data)
-	docker compose --env-file .env exec -T db psql -qU relayops -d postgres -c "drop database if exists relayops with (force)" -c "create database relayops"
-	$(MAKE) migrate seed
+seed-demo: demo-migrate ## Seed the labeled synthetic world into the demo database only (refuses operational)
+	$(DEMO_ENV) $(UV) run python -m relayops.services.seed
+
+demo-dev:         ## Run the labeled demo instance on :8030/:3030 against the demo database
+	$(DEMO_ENV) bash scripts/dev.sh
+
+demo-reset:       ## Back up, drop, and re-seed the demo database only
+	@python3 scripts/backup_db.py RELAYOPS_DEMO_DATABASE_URL
+	@docker compose --env-file .env exec -T db psql -qU relayops -d postgres -c "drop database if exists $$(python3 -c "import sys;sys.path.insert(0,'scripts');from ensure_db import _url_from_env as u;print(u('RELAYOPS_DEMO_DATABASE_URL').rsplit('/',1)[1])") with (force)"
+	$(MAKE) seed-demo
+
+backup:           ## pg_dump the operational database into data/backups (git-ignored)
+	@python3 scripts/backup_db.py RELAYOPS_DATABASE_URL
 
 doctor:           ## Check prerequisites and service health
 	python3 scripts/doctor.py
@@ -70,9 +91,7 @@ eval-full:        ## Full benchmark (dev+validation, all systems); long-running;
 screenshots:      ## Capture docs/images from the running app
 	cd frontend && SCREENSHOTS=1 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test e2e/screenshots.spec.ts
 
-demo:             ## Seed if needed, check health, and print the walkthrough
-	$(MAKE) seed >/dev/null
-	DOCTOR_SOFT=1 python3 scripts/doctor.py
+demo:             ## Print the demo walkthrough (run make seed-demo and make demo-dev first)
 	python3 scripts/demo.py
 
 build:

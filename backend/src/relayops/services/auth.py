@@ -115,7 +115,7 @@ def register_organization(
     while db.execute(select(Organization.id).where(Organization.slug == slug)).first():
         n += 1
         slug = f"{base}-{n}"
-    org = Organization(name=organization_name.strip()[:200], slug=slug)
+    org = Organization(name=organization_name.strip()[:200], slug=slug, data_class=get_settings().data_mode)
     user = User(email=email, name=name.strip()[:200], password_hash=hash_password(password))
     db.add_all([org, user])
     db.flush()

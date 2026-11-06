@@ -48,7 +48,8 @@ def _setup_env(profile: str) -> None:
     # Separate databases per provider so the dense index always matches the embedding model in use.
     name = "relayops_eval_offline" if profile == "offline" else "relayops_eval"
     os.environ["RELAYOPS_DATABASE_URL"] = base.rsplit("/", 1)[0] + "/" + name
-    os.environ["RELAYOPS_WORLD_ANCHOR"] = ""  # fixed anchor from world.json for reproducible as-of times
+    os.environ["RELAYOPS_WORLD_ANCHOR"] = ""
+    os.environ["RELAYOPS_DATA_MODE"] = "test"  # evaluation databases hold test fixtures only  # fixed anchor from world.json for reproducible as-of times
     if profile == "offline":
         os.environ["RELAYOPS_LLM_PROVIDER"] = "fixture"
 
@@ -71,6 +72,10 @@ def _prepare_db() -> None:
     from relayops.services.seed import seed
 
     ensure_checkpointer_schema()
+    from relayops.core.instance import initialize
+
+    with session_scope() as db:
+        initialize(db)
     with session_scope() as db:
         seed(db, credentials_path=ROOT / "data" / "runtime" / "eval-credentials.json")
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -10,14 +12,26 @@ from sqlalchemy import text
 from relayops.agents.llm import ModelUnavailable
 from relayops.api.routers import auth, investigations, knowledge, operations, settings, tickets
 from relayops.core.config import get_settings
-from relayops.core.db import get_engine
+from relayops.core.db import get_engine, session_scope
+from relayops.core.instance import require_mode
 from relayops.domain.scope import AccessDenied, Conflict, NotFound, ValidationFailed
 
 log = logging.getLogger("relayops.api")
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # Refuse to serve when the configured data mode does not match the database (or settings are unsafe).
+    with session_scope() as db:
+        mode = require_mode(db)
+    log.info("RelayOps API serving %s data", mode)
+    yield
+
+
 def create_app() -> FastAPI:
-    app = FastAPI(title="RelayOps API", version="0.1.0", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(
+        title="RelayOps API", version="0.2.0", docs_url="/api/docs", openapi_url="/api/openapi.json", lifespan=lifespan
+    )
 
     @app.exception_handler(NotFound)
     async def _nf(_: Request, exc: NotFound) -> JSONResponse:
@@ -43,6 +57,16 @@ def create_app() -> FastAPI:
     async def _rv(_: Request, exc: RequestValidationError) -> JSONResponse:
         errors = [{"field": ".".join(str(x) for x in e["loc"][1:]), "message": e["msg"]} for e in exc.errors()]
         return JSONResponse({"detail": "invalid request", "errors": errors}, status_code=422)
+
+    @app.get("/api/instance")
+    def instance() -> dict[str, object]:
+        mode = get_settings().data_mode
+        labels = {
+            "operational": None,
+            "demo": "Demo instance: every record here is synthetic sample data.",
+            "test": "Test instance: records are test fixtures.",
+        }
+        return {"data_mode": mode, "banner": labels[mode]}
 
     @app.get("/api/health")
     def health() -> dict[str, object]:

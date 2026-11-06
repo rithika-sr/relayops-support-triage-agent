@@ -27,6 +27,8 @@ class KnowledgeDocument(Base):
     product_versions: Mapped[list[str]] = mapped_column(JSON, default=list)
     status: Mapped[str] = mapped_column(String(16), default="current")  # current | superseded | retired
     current_version_id: Mapped[str | None] = mapped_column(String(64))
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
+    source_kind: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown")
     created_at: Mapped[datetime] = created_at_column()
 
 

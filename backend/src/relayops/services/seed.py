@@ -155,7 +155,13 @@ def _seed_ticket(
         ).scalar_one()
         + 1
     )
+    org_row = db.get(Organization, org_id)
+    dc = org_row.data_class if org_row else "unknown"
     ticket = Ticket(
+        data_class=dc,
+        source_kind="seed",
+        source_system="relayops-demo-seed",
+        received_at=created,
         organization_id=org_id,
         customer_account_id=acct.id,
         number=number,
@@ -182,6 +188,8 @@ def _seed_ticket(
     db.flush()
     db.add(
         TicketMessage(
+            data_class=dc,
+            source_kind="seed",
             ticket_id=ticket.id,
             organization_id=org_id,
             customer_account_id=acct.id,
@@ -194,6 +202,8 @@ def _seed_ticket(
     if historical:
         db.add(
             TicketMessage(
+                data_class=dc,
+                source_kind="seed",
                 ticket_id=ticket.id,
                 organization_id=org_id,
                 customer_account_id=acct.id,
@@ -236,7 +246,21 @@ def _seed_errors(db: Session, org_id: str, series: list[dict[str, Any]], anchor:
                     )
 
 
+class SeedRefused(RuntimeError):
+    pass
+
+
 def seed(db: Session, provider: Provider | None = None, credentials_path: Path | None = None) -> dict[str, Any]:
+    """Load the synthetic world. Only allowed in a database initialized for demo or test data."""
+    from relayops.core.instance import recorded_mode
+
+    mode = recorded_mode(db)
+    if mode not in ("demo", "test") or get_settings().data_mode != mode:
+        raise SeedRefused(
+            f"refusing to seed sample data: database mode is {mode!r}, configured mode is "
+            f"{get_settings().data_mode!r}. Use make seed-demo, which targets the separate demo database."
+        )
+    data_class = mode
     provider = provider or get_provider()
     world = json.loads((DATA / "fixtures" / "world.json").read_text())
     history = json.loads((DATA / "fixtures" / "historical_tickets.json").read_text())["tickets"]
@@ -250,7 +274,7 @@ def seed(db: Session, provider: Provider | None = None, credentials_path: Path |
     stats: dict[str, Any] = {"anchor": anchor.isoformat(), "documents_changed": 0}
 
     for o in world["organizations"]:
-        org = _upsert(db, Organization, o["id"], name=o["name"], slug=o["slug"])
+        org = _upsert(db, Organization, o["id"], name=o["name"], slug=o["slug"], data_class=data_class)
         if "world_anchor" not in (org.settings or {}):
             org.settings = {
                 **(org.settings or {}),
@@ -442,8 +466,12 @@ def seed(db: Session, provider: Provider | None = None, credentials_path: Path |
 def main() -> None:
     from relayops.core.db import session_scope
 
-    with session_scope() as db:
-        print(json.dumps(seed(db), indent=2, default=str))
+    try:
+        with session_scope() as db:
+            print(json.dumps(seed(db), indent=2, default=str))
+    except SeedRefused as exc:
+        print(f"error: {exc}")
+        raise SystemExit(2) from exc
 
 
 if __name__ == "__main__":

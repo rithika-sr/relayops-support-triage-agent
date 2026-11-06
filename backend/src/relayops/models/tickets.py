@@ -32,6 +32,14 @@ class Ticket(Base):
     resolution_summary: Mapped[str | None] = mapped_column(Text)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     external_event_id: Mapped[str | None] = mapped_column(String(120))
+    # Provenance: derived server-side from the channel and the instance mode, never from client input.
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
+    source_kind: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown")
+    source_system: Mapped[str | None] = mapped_column(String(120))
+    source_connection_id: Mapped[str | None] = mapped_column(ForeignKey("connections.id"))
+    import_batch_id: Mapped[str | None] = mapped_column(ForeignKey("import_batches.id"))
+    source_event_at: Mapped[datetime | None] = mapped_column(Tz)
+    received_at: Mapped[datetime | None] = mapped_column(Tz)
     created_by_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = created_at_column()
@@ -52,4 +60,6 @@ class TicketMessage(Base):
     visibility: Mapped[str] = mapped_column(String(16))  # customer | internal
     body: Mapped[str] = mapped_column(Text)
     action_id: Mapped[str | None] = mapped_column(String(64))
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
+    source_kind: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown")
     created_at: Mapped[datetime] = created_at_column()

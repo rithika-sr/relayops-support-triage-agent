@@ -98,6 +98,7 @@ def start_run(
     }
     run = InvestigationRun(
         id=run_id,
+        data_class=ticket.data_class,
         organization_id=p.organization_id,
         customer_account_id=ticket.customer_account_id,
         ticket_id=ticket.id,
@@ -296,6 +297,7 @@ def recorded_replay(db: Session, p: Principal, run_id: str) -> InvestigationRun:
     rid = new_id("run")
     replay = InvestigationRun(
         id=rid,
+        data_class=src.data_class,
         organization_id=src.organization_id,
         customer_account_id=src.customer_account_id,
         ticket_id=src.ticket_id,

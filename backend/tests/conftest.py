@@ -18,6 +18,7 @@ if not _BASE:
 TEST_URL = _BASE.rsplit("/", 1)[0] + "/relayops_test"
 os.environ["RELAYOPS_DATABASE_URL"] = TEST_URL
 os.environ["RELAYOPS_ENV"] = "test"
+os.environ["RELAYOPS_DATA_MODE"] = "test"
 os.environ.setdefault("RELAYOPS_LLM_PROVIDER", "fixture")
 os.environ.setdefault("RELAYOPS_SESSION_SECRET", "test-session-secret-0123456789")
 
@@ -58,6 +59,7 @@ def _clean() -> Iterator[None]:
     tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
     with get_engine().begin() as c:
         c.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+        c.execute(text("INSERT INTO instance_metadata (id, data_mode, initialized_at) VALUES (1, 'test', now())"))
         c.execute(
             text(
                 "DO $$ BEGIN IF to_regclass('checkpoints') IS NOT NULL THEN "

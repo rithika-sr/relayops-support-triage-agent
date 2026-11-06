@@ -17,6 +17,7 @@ from relayops.models import (
     ErrorAggregate,
     Incident,
     IncidentTicketLink,
+    Organization,
     Ticket,
 )
 from relayops.repositories import scoped
@@ -381,7 +382,9 @@ def draft_summary(db: Session, p: Principal, incident_id: str) -> Any:
         "",
         "Deployment timing is listed as correlation only; no root cause is confirmed here.",
     ]
+    org = db.get(Organization, p.organization_id)
     art = Artifact(
+        data_class=org.data_class if org else "unknown",
         organization_id=p.organization_id,
         incident_id=incident_id,
         kind="incident_summary",

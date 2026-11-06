@@ -45,8 +45,8 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
       - name: Types
         run: uv run mypy
-      - name: Migrations apply to an empty database
-        run: uv run alembic upgrade head
+      - name: Migrations apply to an empty database, downgrade, and re-apply
+        run: uv run alembic upgrade head && uv run alembic downgrade 0001 && uv run alembic upgrade head
       - name: Tests (fixture provider; live-model tests are excluded and run only with make test-live)
         run: uv run pytest
 
@@ -109,6 +109,8 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U relayops" --health-interval 3s --health-timeout 3s --health-retries 20
     env:
+      # The browser journey runs against a labeled demo instance; the fixture provider is refused in operational mode.
+      RELAYOPS_DATA_MODE: demo
       RELAYOPS_FIXTURE_SCRIPT: generic
       RELAYOPS_WEB_ORIGIN: http://localhost:3020
     steps:
@@ -131,6 +133,7 @@ jobs:
         run: |
           uv --directory backend run alembic upgrade head
           uv --directory backend run python -c "from relayops.agents.checkpoint import ensure_checkpointer_schema as e; e()"
+          uv --directory backend run python -m relayops.core.instance
           uv --directory backend run python -m relayops.services.seed > /dev/null
       - name: Start API, worker, and web
         run: |

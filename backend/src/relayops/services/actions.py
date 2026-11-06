@@ -68,6 +68,7 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
 
     now = utcnow()
     record = ActionRecord(
+        data_class=prop.data_class,
         organization_id=prop.organization_id,
         customer_account_id=prop.customer_account_id,
         idempotency_key=idempotency_key(prop),
@@ -91,6 +92,8 @@ def execute(db: Session, proposal_id: str, review_id: str) -> ActionRecord:
 
     receipt: dict[str, Any] = {"mode": "local", "note": "Recorded in RelayOps only. No email or external write."}
     msg = TicketMessage(
+        data_class=ticket.data_class,
+        source_kind="manual",
         ticket_id=ticket.id,
         organization_id=ticket.organization_id,
         customer_account_id=ticket.customer_account_id,

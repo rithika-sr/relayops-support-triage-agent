@@ -20,6 +20,7 @@ class InvestigationRun(Base):
     playbook_key: Mapped[str] = mapped_column(String(32))
     playbook_revision: Mapped[int] = mapped_column(Integer)
     thread_id: Mapped[str] = mapped_column(String(80), unique=True)
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
     mode: Mapped[str] = mapped_column(String(24), default="live")  # live | recorded_replay
     replay_of_run_id: Mapped[str | None] = mapped_column(String(64))
     compare_of_run_id: Mapped[str | None] = mapped_column(String(64))
@@ -92,6 +93,7 @@ class Proposal(Base):
     destination: Mapped[dict[str, Any]] = mapped_column(JSON)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
     payload_hash: Mapped[str] = mapped_column(String(64))
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     evidence_hash: Mapped[str] = mapped_column(String(64))
     policy_version: Mapped[str] = mapped_column(String(32))
@@ -130,6 +132,8 @@ class ActionRecord(Base):
     ticket_id: Mapped[str] = mapped_column(ForeignKey("tickets.id"))
     action_kind: Mapped[str] = mapped_column(String(40))
     adapter: Mapped[str] = mapped_column(String(32), default="local")
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=False)
+
     destination: Mapped[dict[str, Any]] = mapped_column(JSON)
     payload_hash: Mapped[str] = mapped_column(String(64))
     status: Mapped[str] = mapped_column(String(16))  # succeeded | failed | unknown | reconciled

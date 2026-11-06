@@ -26,7 +26,11 @@ def main() -> int:
         "RELAYOPS_DB_PORT": db_port,
         "RELAYOPS_API_PORT": "8020",
         "RELAYOPS_WEB_PORT": "3020",
+        # Operational data (default). Starts empty: no sample customers, tickets, or activity.
+        "RELAYOPS_DATA_MODE": "operational",
         "RELAYOPS_DATABASE_URL": f"postgresql+psycopg://relayops:{pg_password}@127.0.0.1:{db_port}/relayops",
+        # Separate database for the labeled demo instance (make seed-demo, make demo-dev).
+        "RELAYOPS_DEMO_DATABASE_URL": f"postgresql+psycopg://relayops:{pg_password}@127.0.0.1:{db_port}/relayops_demo",
         "RELAYOPS_SESSION_SECRET": secrets.token_urlsafe(48),
         "RELAYOPS_WEB_ORIGIN": "http://localhost:3020",
         "RELAYOPS_API_ORIGIN": "http://localhost:8020",

@@ -65,6 +65,7 @@ def for_proposal(db: Session, proposal: Proposal) -> Artifact:
         ticket = db.get(Ticket, proposal.ticket_id)
         assert ticket is not None
         root = Artifact(
+            data_class=proposal.data_class,
             organization_id=proposal.organization_id,
             customer_account_id=proposal.customer_account_id,
             ticket_id=proposal.ticket_id,
@@ -86,6 +87,7 @@ def engineering_brief(db: Session, proposal: Proposal, created_by: str) -> Artif
     ).scalar_one_or_none()
     if art is None:
         art = Artifact(
+            data_class=proposal.data_class,
             organization_id=proposal.organization_id,
             customer_account_id=proposal.customer_account_id,
             ticket_id=proposal.ticket_id,

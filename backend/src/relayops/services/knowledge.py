@@ -14,7 +14,7 @@ from relayops.core.clock import utcnow
 from relayops.core.security import content_hash
 from relayops.domain.policies import COMPONENTS
 from relayops.domain.scope import Principal, ValidationFailed
-from relayops.models import DocumentVersion, KnowledgeChunk, KnowledgeDocument
+from relayops.models import DocumentVersion, KnowledgeChunk, KnowledgeDocument, Organization
 from relayops.repositories import scoped
 from relayops.services import audit
 
@@ -127,7 +127,14 @@ def ingest(
 
     now = utcnow()
     if doc is None:
-        doc = KnowledgeDocument(organization_id=organization_id, slug=inp.slug, title=inp.title.strip())
+        org = db.get(Organization, organization_id)
+        doc = KnowledgeDocument(
+            organization_id=organization_id,
+            slug=inp.slug,
+            title=inp.title.strip(),
+            data_class=org.data_class if org else "unknown",
+            source_kind="manual" if p is not None else "seed",
+        )
         db.add(doc)
     doc.title = inp.title.strip()
     doc.kind = inp.kind

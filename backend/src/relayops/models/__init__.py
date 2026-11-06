@@ -19,11 +19,25 @@ from relayops.models.operations import (
     IncidentTicketLink,
     TicketIssueLink,
 )
+from relayops.models.provenance import (
+    DATA_CLASSES,
+    SOURCE_KINDS,
+    Connection,
+    ImportBatch,
+    IngestionReceipt,
+    InstanceMetadata,
+)
 from relayops.models.records import Artifact, ArtifactVersion, AuditEvent, EvalReport, Playbook, PlaybookRevision
 from relayops.models.runs import ActionRecord, InvestigationRun, Job, OutboxMessage, Proposal, Review, RunEvent
 from relayops.models.tickets import Ticket, TicketMessage
 
 __all__ = [
+    "DATA_CLASSES",
+    "SOURCE_KINDS",
+    "Connection",
+    "ImportBatch",
+    "IngestionReceipt",
+    "InstanceMetadata",
     "ActionRecord",
     "ApiToken",
     "Artifact",

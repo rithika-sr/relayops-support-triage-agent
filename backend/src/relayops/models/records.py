@@ -21,6 +21,7 @@ class Artifact(Base):
     proposal_id: Mapped[str | None] = mapped_column(ForeignKey("proposals.id"), unique=True)
     incident_id: Mapped[str | None] = mapped_column(ForeignKey("incidents.id"))
     kind: Mapped[str] = mapped_column(String(32))  # customer_reply | engineering_brief | incident_summary
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
     title: Mapped[str] = mapped_column(String(300))
     current_version: Mapped[int] = mapped_column(Integer, default=1)
     review_status: Mapped[str] = mapped_column(String(24), default="draft")  # draft | approved | rejected

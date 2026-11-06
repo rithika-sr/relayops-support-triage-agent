@@ -159,11 +159,15 @@ def process_one(worker_id: str) -> bool:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    from relayops.core.instance import require_mode
+
+    with session_scope() as db:
+        mode = require_mode(db)
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     stop = threading.Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    log.info("worker %s started (provider=%s)", worker_id, get_settings().llm_provider)
+    log.info("worker %s started (mode=%s, provider=%s)", worker_id, mode, get_settings().llm_provider)
     while not stop.is_set():
         try:
             if not process_one(worker_id):

@@ -57,6 +57,7 @@ def create_proposal(
     used = set(payload.get("reply_evidence_ids") or []) | set(payload.get("internal_evidence_ids") or [])
     ev_list = [{"id": k, **v} for k, v in evidence.items() if k in used]
     prop = Proposal(
+        data_class=run.data_class,
         run_id=run.id,
         organization_id=run.organization_id,
         customer_account_id=run.customer_account_id,

@@ -15,6 +15,7 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(200))
     slug: Mapped[str] = mapped_column(String(80), unique=True)
     settings: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    data_class: Mapped[str] = mapped_column(String(16), default="unknown", server_default="unknown", index=True)
     created_at: Mapped[datetime] = created_at_column()
 
 

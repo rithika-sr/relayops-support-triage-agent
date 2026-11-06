@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -20,7 +20,12 @@ class Settings(BaseSettings):
     )
 
     env: Literal["development", "test", "production"] = "development"
+    # operational: real records only, no seeding, real model required. demo: seeded sample world, labeled.
+    # test: isolated test/evaluation databases.
+    data_mode: Literal["operational", "demo", "test"] = "operational"
     database_url: str = "postgresql+psycopg://relayops:relayops@127.0.0.1:5440/relayops"
+    # Used instead of database_url when data_mode is "demo", so the demo instance never shares the operational DB.
+    demo_database_url: str | None = None
     session_secret: str = Field(default="dev-only-change-me", min_length=16)
     session_ttl_hours: int = 12
     cookie_secure: bool = False
@@ -57,6 +62,12 @@ class Settings(BaseSettings):
     world_anchor: str = "now"
     login_max_failures: int = 5
     login_window_minutes: int = 15
+
+    @model_validator(mode="after")
+    def _demo_database(self) -> Settings:
+        if self.data_mode == "demo" and self.demo_database_url:
+            self.database_url = self.demo_database_url
+        return self
 
 
 @lru_cache
