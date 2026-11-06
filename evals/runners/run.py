@@ -410,6 +410,9 @@ def run_profile(args: argparse.Namespace) -> int:
     else:
         selected = [c for c in pool if c["split"] in (("dev", "validation", "test") if args.include_test else
                                                         ("dev", "validation"))]
+        if args.categories:
+            wanted = {c.strip() for c in args.categories.split(",") if c.strip()}
+            selected = [c for c in selected if c["category"] in wanted]
         if args.limit:
             selected = selected[: args.limit]
         plan = {s: selected for s in args.systems}
@@ -418,6 +421,7 @@ def run_profile(args: argparse.Namespace) -> int:
     tag = args.resume or datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
     meta = metadata(args.profile, list(plan))  # captured before any case runs
     meta["dataset_scope"] = args.dataset
+    meta["categories"] = args.categories or "all"
     meta["recall_k"] = RECALL_K
     meta["config_hash"] = hashlib.sha256(json.dumps({k: meta[k] for k in (
         "profile", "systems", "model", "model_digest", "embedding_model", "prompt_hash", "policy_version", "retrieval",
@@ -590,6 +594,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", choices=["offline", "live-smoke", "full"], required=True)
     ap.add_argument("--systems", default="rules,rag,agent,hybrid")
+    ap.add_argument("--categories", default="",
+                    help="comma-separated categories for a declared regression subset (full profile only)")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--include-test", action="store_true", help="consume the frozen test split (final runs only)")
     ap.add_argument("--dataset", choices=["main", "hard", "both"], default="main")
