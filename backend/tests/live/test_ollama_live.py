@@ -31,9 +31,14 @@ def test_embedding_dimension_matches_index(ollama):
 
 
 def test_structured_output_is_valid_json(ollama):
-    res = ollama.chat_json(purpose="probe", system="Return JSON only.", user='Return {"ok": true}.',
-                           schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
-                           timeout=120, max_tokens=20)
+    res = ollama.chat_json(
+        purpose="probe",
+        system="Return JSON only.",
+        user='Return {"ok": true}.',
+        schema={"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]},
+        timeout=120,
+        max_tokens=20,
+    )
     assert res.parsed == {"ok": True}
     assert ollama.model_digest()
 
@@ -50,5 +55,10 @@ def test_real_tool_driven_run_reaches_review(ollama, db, tmp_path):
     assert d["run"]["usage"]["tool_calls"] >= 1
     assert any(e["kind"] == "model_call" and e["payload"]["provider"] == "ollama" for e in d["events"])
     prop = d["proposals"][0]
-    assert prop["route"] in {"link_existing_issue", "new_engineering_handoff", "clarification", "specialist_review",
-                             "answer_draft"}
+    assert prop["route"] in {
+        "link_existing_issue",
+        "new_engineering_handoff",
+        "clarification",
+        "specialist_review",
+        "answer_draft",
+    }
