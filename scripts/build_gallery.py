@@ -67,7 +67,7 @@ def compress() -> None:
     from PIL import Image
 
     for f in sorted(IMAGES.glob("*.png")):
-        if f.stat().st_size < 250_000:
+        if f.stat().st_size < 100_000:
             continue
         before = f.stat().st_size
         with Image.open(f) as im:
