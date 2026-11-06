@@ -1,0 +1,15 @@
+# gitleaks configuration: default rules plus exact known non-secrets. Keep this list small and explain each entry.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known non-secret values"
+regexTarget = "match"
+regexes = [
+  # Test-suite fixture password (also the only entry in scripts/check_repo.py ALLOWLIST).
+  '''PASSWORD = "correct-horse-battery-staple"''',
+  # Evaluation report identifiers such as report_key": "live-smoke-20261106T142718
+  '''report_key": "(offline|live-smoke|full)-\d{8}T\d{6}''',
+]
+# The scanner's own regression tests contain synthetic credential-shaped strings by design.
+paths = ['''backend/tests/unit/test_check_repo\.py''']
