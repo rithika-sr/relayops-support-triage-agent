@@ -33,7 +33,7 @@ packages = ["src/relayops"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q -p no:cacheprovider"
+addopts = "-q -p no:cacheprovider -m 'not live'"
 timeout = 120
 markers = ["live: requires a running Ollama with the configured models (opt-in, never faked)"]
 
