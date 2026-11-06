@@ -1,13 +1,36 @@
 # Diagrams
 
-Seven views of the system, each drawn from the code it describes. CI renders every block on this page with a pinned
-Mermaid CLI and fails on a syntax error (`scripts/render_diagrams.py`).
+Seven views of the system, each drawn from the code it describes, plus four supplementary views. CI renders every
+Mermaid block in the README and docs with a pinned CLI (`@mermaid-js/mermaid-cli` 11.4.2) and fails on any error
+(`scripts/render_diagrams.py`). Nothing here depicts infrastructure that is not implemented: there is no cloud
+deployment, load balancer, or managed database.
 
-## 1. Components (flowchart)
+## 1. System context
 
-What runs where. Everything is local: the model runs in Ollama on the same machine, and the only outbound
-connector talks to a loopback test service unless an operator enables allow-listed `api.github.com` repositories
-(implemented, not yet exercised against real GitHub).
+Who uses RelayOps and what it talks to. The model runs on the same machine; the tracker connector is limited to a
+loopback test service unless an operator enables allow-listed `api.github.com` repositories (implemented, not yet
+exercised against real GitHub).
+
+```mermaid
+flowchart TB
+  Customer(["Customer users<br/>(portal)"])
+  Staff(["Support, engineering, CS staff<br/>(staff app)"])
+  Sender(["Other helpdesk or system<br/>(signed webhook, CSV/JSON import)"])
+  Assistant(["MCP client<br/>(read-only token)"])
+  RO["RelayOps<br/>one organization per tenant;<br/>operational or demo instance"]
+  Model["Local model runtime<br/>Ollama on the same machine"]
+  GH["Issue tracker<br/>loopback test service, or opt-in<br/>allow-listed api.github.com"]
+  Customer -- "tickets, Help, approved replies" --> RO
+  Staff -- "triage, review, approve" --> RO
+  Sender -- "tickets (HMAC-signed)" --> RO
+  Assistant -- "read tickets, runs, knowledge" --> RO
+  RO -- "extraction, routing, drafts, claim checks, embeddings" --> Model
+  RO -. "approved engineering handoffs" .-> GH
+```
+
+## 2. Components and containers
+
+What runs where inside one installation.
 
 ```mermaid
 flowchart LR
@@ -43,7 +66,36 @@ flowchart LR
   Outbox -. "approved handoffs" .-> Fake
 ```
 
-## 2. From ticket to customer reply (sequence)
+## 3. Agent state flow
+
+The LangGraph nodes for one investigation (`agents/graph.py`). The selective path takes the route from a typed
+policy rule when the records decide it; otherwise both paths investigate adaptively.
+
+```mermaid
+stateDiagram-v2
+  direction LR
+  [*] --> load_context
+  load_context --> extract: trusted ticket, account, plan, target
+  extract --> precheck: reported facts (+ codes detected in text)
+  precheck --> propose: selective path and a policy rule decides
+  precheck --> investigate: adaptive path, or no rule decides
+  investigate --> investigate: next tool call (max 4 turns, 6 calls)
+  investigate --> propose: enough evidence, budget, repeats, or deadline
+  propose --> draft_reply: route (code constraints applied)
+  draft_reply --> verify: reply from customer-visible evidence
+  verify --> review: checks + claim verdicts stored on proposal vN
+  review --> review: reviewer edit (new version, re-verified)
+  review --> act: approved exact version
+  review --> audit_outcome: rejected
+  act --> audit_outcome: action ledger (once) + outbox
+  audit_outcome --> [*]
+  note right of review
+    Graph interrupt. Nothing customer-visible
+    happens before approval.
+  end note
+```
+
+## 4. End-to-end sequence: from ticket to customer reply
 
 Nothing reaches the customer until a person approves the exact version that was checked.
 
@@ -77,31 +129,7 @@ sequenceDiagram
   C->>API: GET ticket: sees only the approved text
 ```
 
-## 3. Investigation run lifecycle (state)
-
-Statuses from `services/runs.py` (`ACTIVE`, `TERMINAL`).
-
-```mermaid
-stateDiagram-v2
-  [*] --> queued
-  queued --> running: worker claims job
-  running --> awaiting_review: proposal created
-  running --> failed: model unavailable or worker error after retries
-  awaiting_review --> executing: approved (binding still matches)
-  awaiting_review --> rejected: reviewer rejects
-  awaiting_review --> awaiting_review: reviewer edits (new version)
-  executing --> completed: action succeeded or reconciled
-  executing --> failed: action refused or failed
-  queued --> cancelled
-  running --> cancelled
-  awaiting_review --> cancelled
-  completed --> [*]
-  failed --> [*]
-  rejected --> [*]
-  cancelled --> [*]
-```
-
-## 4. Core records (entity relationship)
+## 5. Entity relationships
 
 A subset of the schema (Alembic migrations 0001–0007). Every row carries its organization, and most carry a
 `data_class` (operational, demo, test, unknown) set by the server.
@@ -144,7 +172,88 @@ erDiagram
   }
 ```
 
-## 5. Claim verification pipeline (class)
+## 6. Deployment and trust boundaries
+
+The supported deployment is a single host. Ports are the defaults; Postgres binds to 127.0.0.1. Each arrow names
+the control at that boundary.
+
+```mermaid
+flowchart LR
+  subgraph Host["One machine (supported deployment: local or a single host you control)"]
+    subgraph Pub["Bound to localhost by default"]
+      Web["Next.js :3020<br/>(demo :3030)"]
+      API["FastAPI :8020<br/>(demo :8030)"]
+    end
+    Worker["Worker process(es)"]
+    subgraph Docker["Docker"]
+      PG[("Postgres :5440 on 127.0.0.1<br/>relayops_operational | demo DB | eval DBs")]
+    end
+    Ollama["Ollama :11434"]
+    Local[".env and .local/ (git-ignored):<br/>secrets, demo credentials"]
+  end
+  Browser["Browser"] -- "session cookie + CSRF header + Origin check" --> Web
+  Web -- "/api rewrite (same origin)" --> API
+  Sender["Signed sender"] -- "HMAC, 5-min window, receipts" --> API
+  MCPc["MCP client"] -- "bearer mcp:read token" --> API
+  API -- "scoped by organization and account" --> PG
+  Worker --> PG
+  Worker --> Ollama
+  API --> Ollama
+  Worker -. "loopback, or allow-listed api.github.com when enabled" .-> GH["Tracker"]
+```
+
+## 7. Adoption-event flow
+
+How customer activity becomes Customer Success views (`domain/events.py`, `services/success.py`). Demo and test
+records never reach an operational instance's numbers.
+
+```mermaid
+flowchart LR
+  subgraph Sources["Recorded by the app (server-side)"]
+    S1["sign-in"] --> E
+    S2["ticket created"] --> E
+    S3["reply published (after approval)"] --> E
+    S4["Help search / article view / feedback / contact"] --> E
+    S5["experiment exposure"] --> E
+    S6["admin event import (dry run first)"] --> E
+  end
+  E[("product_events<br/>schema v1, typed properties,<br/>unique event_id per org, data_class")]
+  E --> F{"data class allowed?<br/>operational instance: operational only"}
+  F -- yes --> V1["Onboarding steps"]
+  F -- yes --> V2["Account adoption and friction"]
+  F -- yes --> V3["Retention cohorts<br/>(pending until reachable)"]
+  F -- yes --> V4["Opportunity rules"]
+  F -- yes --> V5["Experiment results<br/>(hidden below minimum)"]
+  F -- "no (demo, test, unknown)" --> X["excluded and counted as excluded"]
+```
+
+## Supplementary views
+
+### Investigation run lifecycle (state)
+
+Statuses from `services/runs.py` (`ACTIVE`, `TERMINAL`).
+
+```mermaid
+stateDiagram-v2
+  [*] --> queued
+  queued --> running: worker claims job
+  running --> awaiting_review: proposal created
+  running --> failed: model unavailable or worker error after retries
+  awaiting_review --> executing: approved (binding still matches)
+  awaiting_review --> rejected: reviewer rejects
+  awaiting_review --> awaiting_review: reviewer edits (new version)
+  executing --> completed: action succeeded or reconciled
+  executing --> failed: action refused or failed
+  queued --> cancelled
+  running --> cancelled
+  awaiting_review --> cancelled
+  completed --> [*]
+  failed --> [*]
+  rejected --> [*]
+  cancelled --> [*]
+```
+
+### Claim verification types (class)
 
 `agents/claims.py` and `agents/verification.py`. Method and verdict stay separate so a typed rule, a model
 judgment, and a human label are never presented as the same thing.
@@ -187,9 +296,8 @@ classDiagram
   ClaimAnnotation ..> Claim : human label bound to exact text
 ```
 
-## 6. Customer self-service (user journey)
+### Customer self-service (user journey)
 
-What a customer does in the portal, and which product event each step records (`domain/events.py`).
 Scores are the author's expectation of effort, not measurements.
 
 ```mermaid
@@ -206,7 +314,7 @@ journey
     Reviewed reply arrives (reply.published): 5: Customer, Support
 ```
 
-## 7. Evaluation dataset by split (pie)
+### Evaluation dataset by split (pie)
 
 Case counts from the committed split manifests: `evals/datasets/split_manifest.json` (main set: dev 72,
 validation 54, test 54, challenge 6) plus `hard_split_manifest.json` (hard slice: dev 12, validation 9, test 9).
