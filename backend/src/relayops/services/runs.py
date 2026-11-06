@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select, text, update
@@ -54,7 +54,9 @@ def start_run(
     playbook_key: str | None = None,
     retrieval_mode: str | None = None,
     compare_of_run_id: str | None = None,
+    as_of: datetime | None = None,
 ) -> InvestigationRun:
+    """`as_of` pins the evidence clock (evaluation and replay of historical cases); the API never sets it."""
     scoped.require_staff(p)
     ticket = scoped.get_ticket(db, p, ticket_id, for_update=True)
     if ticket.is_historical:
@@ -117,7 +119,7 @@ def start_run(
             "embed_model": provider.embed_model,
             "lexical_engine": "postgres ts_rank_cd",
         },
-        budgets={**budgets, "playbook": cfg.model_dump(mode="json")},
+        budgets={**budgets, "playbook": cfg.model_dump(mode="json"), **({"as_of": as_of.isoformat()} if as_of else {})},
         usage={"turns": 0, "tool_calls": 0, "model_calls": 0, "repairs": 0},
         created_by_user_id=p.user_id,
     )

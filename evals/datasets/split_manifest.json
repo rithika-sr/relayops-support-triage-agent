@@ -1,0 +1,121 @@
+{
+  "dataset": "relayops-synthetic-v1",
+  "world_snapshot_id": "world_v1",
+  "unit_of_split": "root family",
+  "family_splits": {
+    "howto_sso_business": "dev",
+    "howto_webhook_signature": "dev",
+    "howto_api_limit": "dev",
+    "howto_background_export": "dev",
+    "howto_restore_project": "validation",
+    "howto_digest_schedule": "validation",
+    "howto_export_row_limit": "validation",
+    "howto_scim_business": "test",
+    "howto_add_seats": "test",
+    "howto_connect_slack": "test",
+    "known_export_500_24": "dev",
+    "known_webhook_retry": "dev",
+    "known_api_429_headers": "dev",
+    "known_search_archived": "dev",
+    "known_slack_refresh": "validation",
+    "known_scim_lag": "validation",
+    "known_pdf_timeout_23": "validation",
+    "known_saml_skew_23": "test",
+    "known_xlsx_fields_23": "test",
+    "known_proration_display": "test",
+    "new_webhook_sig_mismatch": "dev",
+    "new_export_500_25": "dev",
+    "new_project_duplicate": "dev",
+    "new_calendar_dupes": "dev",
+    "new_tax_rounding": "validation",
+    "new_mentions_missing": "validation",
+    "new_cursor_repeat": "validation",
+    "new_sso_logout_loop": "test",
+    "new_gantt_render": "test",
+    "new_jira_sync": "test",
+    "clarify_vague_export": "dev",
+    "clarify_vague_login": "dev",
+    "clarify_vague_slow": "dev",
+    "clarify_vague_missing_data": "dev",
+    "clarify_vague_notifications": "validation",
+    "clarify_vague_integration": "validation",
+    "clarify_vague_billing": "validation",
+    "clarify_vague_setting": "test",
+    "clarify_vague_api": "test",
+    "clarify_vague_webhook": "test",
+    "feature_s3_exports": "dev",
+    "feature_webhook_secrets": "dev",
+    "feature_gantt_baseline": "dev",
+    "feature_dark_mode": "dev",
+    "feature_custom_roles": "validation",
+    "feature_bulk_edit": "validation",
+    "feature_time_tracking": "validation",
+    "feature_public_dashboards": "test",
+    "feature_offline_mobile": "test",
+    "feature_csv_import_mapping": "test",
+    "incident_notify_lag": "dev",
+    "incident_saml_idp": "dev",
+    "incident_api_latency": "dev",
+    "incident_search_delay": "dev",
+    "incident_slack_delivery": "validation",
+    "incident_billing_portal": "validation",
+    "incident_mobile_push": "validation",
+    "incident_calendar_sync": "test",
+    "incident_attachments": "test",
+    "incident_export_queue": "test"
+  },
+  "counts": {
+    "dev": 72,
+    "validation": 54,
+    "test": 54,
+    "challenge": 6
+  },
+  "per_category": {
+    "how_to": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    },
+    "known_issue": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    },
+    "new_handoff": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    },
+    "clarification": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    },
+    "feature_request": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    },
+    "incident": {
+      "dev": 12,
+      "validation": 9,
+      "test": 9
+    }
+  },
+  "split_sha256": {
+    "dev": "c9c8453099813c178cc43b0f557321c2f494fc5657cff54266c80ccc63e3bc97",
+    "validation": "271982326f1e3404fb88df9af2741bf94c94f0e177268b680c22c4a5a09bde4a",
+    "test": "b70460ae1cd5049499c74838e7ff886a94d30b4acddc4f3f5f9bc9c67108326d",
+    "challenge": "49b8a2e8030f57bc422fc0a065a536761822afe66bd529ab990ab4705c5af818"
+  },
+  "demo_case_ids": [
+    "howto_sso_business_v1",
+    "howto_webhook_signature_v1",
+    "known_export_500_24_v1",
+    "new_webhook_sig_mismatch_v1",
+    "clarify_vague_export_v1",
+    "challenge_cross_tenant_disclosure"
+  ],
+  "test_split_status": "frozen; not run",
+  "limitations": "Small balanced synthetic benchmark; measures this test mix, not a real ticket distribution."
+}
