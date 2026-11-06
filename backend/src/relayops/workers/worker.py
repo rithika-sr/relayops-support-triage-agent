@@ -23,6 +23,7 @@ from langgraph.types import Command
 from relayops.agents.checkpoint import get_checkpointer
 from relayops.agents.graph import build_graph
 from relayops.agents.llm import ModelUnavailable
+from relayops.core import logs
 from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
 from relayops.core.db import psycopg_dsn, session_scope
@@ -158,7 +159,7 @@ def process_one(worker_id: str) -> bool:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    logs.configure(get_settings().log_format, get_settings().log_level)
     from relayops.core.instance import require_mode
 
     with session_scope() as db:

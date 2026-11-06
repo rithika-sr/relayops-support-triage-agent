@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     max_output_tokens: int = 700
     llm_timeout_seconds: float = 90.0
     embed_max_chars: int = 2000
+    log_format: Literal["text", "json"] = "text"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     # Claim verifier: a local model judging cited spans. Empty model means the pinned chat model.
     claim_verifier: Literal["off", "local_model"] = "local_model"
     claim_verifier_model: str = ""

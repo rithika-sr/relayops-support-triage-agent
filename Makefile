@@ -9,7 +9,7 @@ DEMO_ENV := RELAYOPS_DATA_MODE=demo \
 	RELAYOPS_API_PORT=8030 RELAYOPS_WEB_PORT=3030 RELAYOPS_WEB_ORIGIN=http://localhost:3030 \
 	RELAYOPS_API_ORIGIN=http://localhost:8030
 
-.PHONY: setup up down migrate dev demo-migrate seed-demo demo-dev demo-reset doctor test test-offline test-live e2e e2e-offline \
+.PHONY: restore-check setup up down migrate dev demo-migrate seed-demo demo-dev demo-reset doctor test test-offline test-live e2e e2e-offline \
         eval-offline eval-live-smoke eval-full screenshots demo lint build check-repo images
 
 setup:            ## Generate .env secrets, install pinned deps, start Postgres, migrate
@@ -56,6 +56,9 @@ demo-reset:       ## Back up, drop, and re-seed the demo database only
 
 backup:           ## pg_dump the operational database into data/backups (git-ignored)
 	@python3 scripts/backup_db.py RELAYOPS_DATABASE_URL
+
+restore-check:    ## Restore the newest backup into a scratch database, report counts, drop it (FILE= to choose)
+	@python3 scripts/restore_check.py $(FILE)
 
 doctor:           ## Check prerequisites and service health
 	python3 scripts/doctor.py

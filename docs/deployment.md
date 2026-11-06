@@ -34,8 +34,27 @@ check).
 - The default run deadline is 420 seconds; per-call timeout 90 seconds; context 8,192 tokens.
 - Exact vector search without an approximate index; adequate for the synthetic corpus (54 documents across both organizations) and not
   benchmarked at larger sizes.
-- No backup, high-availability, or multi-region configuration is provided.
+- No high-availability or multi-region configuration is provided.
+
+## Health, logs, shutdown, backups
+
+- `GET /api/health` is liveness only (the process answers; no dependencies touched).
+- `GET /api/ready` is readiness: the database answers, Alembic is at the head revision, the recorded data mode
+  matches the configured one, and the MCP endpoint is running. It returns 503 with the failing check otherwise.
+- `RELAYOPS_LOG_FORMAT=json` writes one JSON object per line (timestamp, level, logger, message, request ID,
+  method, path, status, duration). Request bodies, cookies, authorization headers, and query strings are never
+  logged. Each response carries `X-Request-ID` (a well-formed incoming one is kept; otherwise one is generated).
+- Shutdown: the API stops on SIGTERM through uvicorn and closes the MCP session manager in its lifespan. The worker
+  stops claiming jobs on SIGTERM or SIGINT and finishes the job in hand; an interrupted job's lease expires and
+  another worker resumes it from its checkpoint (tested).
+- Several workers can share the queue: claims use `FOR UPDATE SKIP LOCKED` and each run has an advisory lock
+  (tested with three concurrent workers).
+- `make backup` writes a `pg_dump` of the operational database to `data/backups/` (git-ignored).
+  `make restore-check` restores the newest dump (or `FILE=...`) into a scratch database, prints the migration,
+  data mode, and row counts, and drops the scratch database. It never restores over a working database; to restore
+  for real, stop the services and run `pg_restore --clean -d <database> <file>` yourself.
 
 ## Not verified
 
-Kubernetes, managed databases, TLS termination, and external connectors are not part of this release.
+Kubernetes, managed databases, and TLS termination are not part of this release. The GitHub Issues connector
+talks only to loopback test services; live external writes need a separately authorized operation.

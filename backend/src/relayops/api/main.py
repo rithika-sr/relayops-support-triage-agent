@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import logging
+import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -21,6 +25,7 @@ from relayops.api.routers import (
     settings,
     tickets,
 )
+from relayops.core import logs
 from relayops.core.config import get_settings
 from relayops.core.db import get_engine, session_scope
 from relayops.core.instance import require_mode
@@ -29,8 +34,19 @@ from relayops.domain.scope import AccessDenied, Conflict, NotFound, ValidationFa
 log = logging.getLogger("relayops.api")
 
 
+def _migration_head() -> str | None:
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    cfg = Config()
+    cfg.set_main_option("script_location", str(Path(__file__).resolve().parents[3] / "alembic"))
+    return ScriptDirectory.from_config(cfg).get_current_head()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    s = get_settings()
+    logs.configure(s.log_format, s.log_level)
     # Refuse to serve when the configured data mode does not match the database (or settings are unsafe).
     with session_scope() as db:
         mode = require_mode(db)
@@ -79,11 +95,60 @@ def create_app() -> FastAPI:
         }
         return {"data_mode": mode, "banner": labels[mode]}
 
+    @app.middleware("http")
+    async def request_log(request: Request, call_next: Any) -> Any:
+        incoming = request.headers.get("x-request-id") or ""
+        rid = incoming if logs.REQUEST_ID.match(incoming) else uuid.uuid4().hex
+        token = logs.request_id.set(rid)
+        started = time.monotonic()
+        try:
+            response = await call_next(request)
+        except Exception:
+            log.exception("unhandled error", extra={"method": request.method, "path": request.url.path})
+            raise
+        finally:
+            logs.request_id.reset(token)
+        response.headers["X-Request-ID"] = rid
+        if not request.url.path.startswith(("/api/health", "/api/ready")):
+            token = logs.request_id.set(rid)
+            log.info(
+                "request",
+                extra={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                    "duration_ms": round((time.monotonic() - started) * 1000, 1),
+                },
+            )
+            logs.request_id.reset(token)
+        return response
+
     @app.get("/api/health")
     def health() -> dict[str, object]:
-        with get_engine().connect() as c:
-            c.execute(text("select 1"))
-        return {"status": "ok", "env": get_settings().env}
+        """Liveness: the process is serving. Does not touch dependencies."""
+        return {"status": "ok"}
+
+    @app.get("/api/ready")
+    def ready() -> JSONResponse:
+        """Readiness: the database answers, migrations are at head, and the recorded data mode matches."""
+        checks: dict[str, dict[str, object]] = {}
+        try:
+            with get_engine().connect() as c:
+                c.execute(text("select 1"))
+                current = c.execute(text("select version_num from alembic_version")).scalar()
+            checks["database"] = {"ok": True}
+            head = _migration_head()
+            checks["migrations"] = {"ok": current == head, "current": current, "head": head}
+            with session_scope() as db:
+                checks["data_mode"] = {"ok": True, "mode": require_mode(db)}
+        except Exception as exc:  # noqa: BLE001 - readiness reports, never raises
+            checks.setdefault("database", {"ok": False, "error": exc.__class__.__name__})
+            checks.setdefault("data_mode", {"ok": False, "error": str(exc)[:200]})
+        checks["mcp"] = {"ok": mcp_endpoint.mounted.app is not None}
+        ok = all(bool(v["ok"]) for v in checks.values())
+        return JSONResponse(
+            {"status": "ready" if ok else "not_ready", "checks": checks}, status_code=200 if ok else 503
+        )
 
     for r in (
         auth.router,
