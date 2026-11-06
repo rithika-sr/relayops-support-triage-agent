@@ -1,9 +1,15 @@
 """Author-labeled calibration set for claim support (claims_v1).
 
-Each item is one reply sentence, the cited passages it may rely on, and the author's gold verdict
-(supported | contradicted | insufficient_evidence). Written by the project author against the synthetic
-world; no model wrote or labeled these items. Small by design: it measures whether the verifier's
-verdicts are usable, not a general accuracy figure.
+Each item is one reply sentence, the cited passages it may rely on, and a gold verdict
+(supported | contradicted | insufficient_evidence) against the synthetic world. Two splits:
+
+- dev (claims_v1, 28 items): used while building the typed rules. Not held out.
+- validation (claims_v1_val, 24 items): written before the semantic verifier was first run and never used to
+  change rules or prompts.
+
+Provenance of the labels: drafted for the maintainer with AI assistance during development and reviewed by
+the maintainer as part of the commit; they are not independent human annotation and must not be reported as
+human claim review. Small by design: a sanity check of whether verdicts are usable, not a general rate.
 """
 
 from __future__ import annotations
@@ -52,12 +58,52 @@ ITEMS = [
 ]
 
 
+AUDIT = "Audit log entries are kept for 90 days on Business and 365 days on Enterprise. Admins can export them as CSV."
+GUEST = "Guests can comment and view assigned tasks. Guests cannot create projects or invite other users."
+API = "The REST API allows 600 requests per minute per token. Requests over the limit receive HTTP 429."
+RESTORE = "Deleted projects stay in Trash for 30 days. An admin can restore them from Settings > Trash."
+TZ = "Due dates are shown in each user's own time zone, set under Profile > Preferences."
+
+VALIDATION = [
+    ("Business plans keep audit log entries for 90 days.", {"E1": AUDIT}, "supported"),
+    ("Admins can export the audit log as a CSV file.", {"E1": AUDIT}, "supported"),
+    ("Audit logs are kept for one year on Business.", {"E1": AUDIT}, "contradicted"),
+    ("Audit logs can be streamed to Splunk.", {"E1": AUDIT}, "insufficient_evidence"),
+    ("Guests are able to comment on tasks.", {"E1": GUEST}, "supported"),
+    ("Guests can invite other users to the workspace.", {"E1": GUEST}, "contradicted"),
+    ("Guests may not create new projects.", {"E1": GUEST}, "supported"),
+    ("Guests are billed at half price.", {"E1": GUEST}, "insufficient_evidence"),
+    ("Each API token can make 600 requests per minute.", {"E1": API}, "supported"),
+    ("Requests above the limit get an HTTP 429 response.", {"E1": API}, "supported"),
+    ("The API allows 1,000 requests per minute per token.", {"E1": API}, "contradicted"),
+    ("Rate limits reset at midnight UTC.", {"E1": API}, "insufficient_evidence"),
+    ("Deleted projects can be restored for 30 days.", {"E1": RESTORE}, "supported"),
+    ("Restoring a project is done from Settings > Trash.", {"E1": RESTORE}, "supported"),
+    ("Deleted projects are removed immediately and cannot be recovered.", {"E1": RESTORE}, "contradicted"),
+    ("Restored projects keep their original share links.", {"E1": RESTORE}, "insufficient_evidence"),
+    ("Each user sees due dates in their own time zone.", {"E1": TZ}, "supported"),
+    ("You can change your time zone under Profile > Preferences.", {"E1": TZ}, "supported"),
+    ("Due dates always display in UTC.", {"E1": TZ}, "contradicted"),
+    ("Workspace admins can force one time zone for everyone.", {"E1": TZ}, "insufficient_evidence"),
+    ("Trash keeps deleted projects for a month.", {"E1": GUEST, "E2": RESTORE}, "supported"),
+    ("The API limit is 600 requests per minute.", {"E1": TZ}, "insufficient_evidence"),
+    ("Guests can view tasks assigned to them.", {"E1": API, "E2": GUEST}, "supported"),
+    ("Enterprise keeps audit entries for 90 days.", {"E1": AUDIT}, "contradicted"),
+]
+LABELS = "maintainer-drafted with AI assistance; not independent human annotation"
+
+
 def build() -> list[dict]:
-    return [{"item_id": f"claim_{i + 1:02d}", "sentence": s, "spans": spans, "gold": gold,
-             "labeled_by": "project author", "slice": "claims_v1"} for i, (s, spans, gold) in enumerate(ITEMS)]
+    out = [{"item_id": f"claim_{i + 1:02d}", "sentence": s, "spans": spans, "gold": gold, "labeled_by": LABELS,
+            "split": "dev", "slice": "claims_v1"} for i, (s, spans, gold) in enumerate(ITEMS)]
+    out += [{"item_id": f"claimval_{i + 1:02d}", "sentence": s, "spans": spans, "gold": gold, "labeled_by": LABELS,
+             "split": "validation", "slice": "claims_v1_val"} for i, (s, spans, gold) in enumerate(VALIDATION)]
+    return out
 
 
 if __name__ == "__main__":
     items = build()
     (HERE / "claims_calibration.jsonl").write_text("\n".join(json.dumps(x, sort_keys=True) for x in items) + "\n")
-    print(len(items), {g: sum(1 for x in items if x["gold"] == g) for g in ("supported", "contradicted", "insufficient_evidence")})
+    for split in ("dev", "validation"):
+        xs = [x for x in items if x["split"] == split]
+        print(split, len(xs), {g: sum(1 for x in xs if x["gold"] == g) for g in ("supported", "contradicted", "insufficient_evidence")})

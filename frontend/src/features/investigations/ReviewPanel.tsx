@@ -8,8 +8,8 @@ import { fmtDate, label } from "@/lib/format";
 import type { Check, Claim, Proposal } from "@/lib/types";
 
 const GROUPS: { id: string; title: string; checks: string[] }[] = [
-  { id: "provenance", title: "Provenance checked", checks: ["required_fields", "provenance", "reply_visibility", "source_currency"] },
-  { id: "policy", title: "Policy checked", checks: ["entitlement_sso", "no_internal_disclosure", "no_unsupported_root_cause", "no_unconfirmed_outage", "issue_link", "incident_link", "incident_visibility", "typed_facts"] },
+  { id: "provenance", title: "Sources checked (provenance, visibility, currency)", checks: ["required_fields", "provenance", "reply_visibility", "source_currency"] },
+  { id: "policy", title: "Policy checked (rules against records)", checks: ["entitlement_sso", "no_internal_disclosure", "no_unsupported_root_cause", "no_unconfirmed_outage", "issue_link", "incident_link", "incident_visibility", "typed_facts"] },
 ];
 
 export function routeSentence(p: Proposal): string {
@@ -171,7 +171,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
           <li>
             <details>
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-2.5">
-                <span>Claim support</span>
+                <span>Claim support <span className="font-normal text-muted">(typed rules, then a local model estimate; not proof)</span></span>
                 <span>
                   {contradicted.length ? <Badge tone="danger">{contradicted.length} contradicted</Badge>
                     : uncertain.length ? <Badge tone="warn">{uncertain.length} of {substantive.length} uncertain</Badge>
@@ -205,7 +205,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
             </details>
           </li>
           <li className="flex items-center justify-between gap-2 px-4 py-2.5">
-            <span>Human reviewed</span>
+            <span>Human approval</span>
             {human ? <Badge tone="ok">approved by {human.reviewer}</Badge> : <Badge>not yet</Badge>}
           </li>
         </ul>
@@ -248,7 +248,7 @@ export function ReviewPanel({ proposal, previous, runId, ticketId, canReview, on
           {needsAck && !failed ? (
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" className="mt-1" checked={ack} onChange={(e) => setAck(e.target.checked)} disabled={!canReview} />
-              <span>I checked the {uncertain.length} claim{uncertain.length === 1 ? "" : "s"} the sources could not confirm.</span>
+              <span>I read the {uncertain.length} claim{uncertain.length === 1 ? "" : "s"} the automated checks could not confirm and accept {uncertain.length === 1 ? "it" : "them"} as written.</span>
             </label>
           ) : null}
           {err ? <Notice tone="danger">{err.detail}</Notice> : null}

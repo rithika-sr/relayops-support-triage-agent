@@ -43,7 +43,7 @@ test("customer report goes through support review and becomes a visible reply", 
   await expect(support.getByText("version 2", { exact: true })).toBeVisible();
   const approve = support.getByRole("button", { name: /^Approve (and publish reply|reply and create handoff)$/ });
   // A reviewer edit is not semantically re-verified, so its claims need explicit acknowledgment.
-  const ack = support.getByRole("checkbox", { name: /claims? the sources could not confirm/ });
+  const ack = support.getByRole("checkbox", { name: /claims? the automated checks could not confirm/ });
   if (await ack.count()) await ack.check();
   await expect(approve).toBeEnabled();
   await approve.click();
