@@ -21,28 +21,30 @@ test("customer report goes through support review and becomes a visible reply", 
   const support = await browser.newPage();
   await signIn(support, SUPPORT);
   await support.goto(`/app/inbox?q=${encodeURIComponent(subject)}`);
-  const row = support.getByRole("row", { name: new RegExp(subject) });
+  const row = support.getByRole("listitem").filter({ hasText: subject });
   await expect(row).toContainText("Northstar Logistics");
   await expect(row).toContainText(/left/);
   await row.getByRole("link").click();
-  await support.getByLabel("Playbook").selectOption("bug");
-  await support.getByRole("button", { name: "Launch investigation" }).click();
+  await support.getByLabel("Investigation playbook").selectOption("bug");
+  await support.getByRole("button", { name: "Investigate" }).click();
   await expect(support).toHaveURL(/\/app\/investigations\/run_/);
 
   // 3. The run pauses for review with a verified proposal.
-  await expect(support.getByText("awaiting review").first()).toBeVisible({ timeout: 200_000 });
-  await expect(support.getByText("Verification ·")).toBeVisible();
+  await expect(support.getByText("Ready for your review")).toBeVisible({ timeout: 200_000 });
+  await expect(support.getByText("Review status")).toBeVisible();
   // The draft is not visible to the customer yet.
   await customer.reload();
   await expect(customer.getByText("TaskFlow support")).toHaveCount(0);
 
   // 4. Reviewer edits (new version), then approves the exact version.
-  const draft = support.getByLabel("Customer reply draft");
+  const draft = support.getByLabel("Customer will see exactly this");
   await draft.fill("Thanks for the details. Our team is aware of this export problem on large projects. Please use Prepare in background from the Export menu as a workaround.");
-  await support.getByRole("button", { name: /Save edit as v2/ }).click();
-  await expect(support.getByRole("button", { name: "Approve v2" })).toBeEnabled();
-  await support.getByRole("button", { name: "Approve v2" }).click();
-  await expect(support.getByText(/Action receipt/)).toBeVisible({ timeout: 60_000 });
+  await support.getByRole("button", { name: "Save edit as version 2" }).click();
+  await expect(support.getByText("version 2", { exact: true })).toBeVisible();
+  const approve = support.getByRole("button", { name: /^Approve (and publish reply|reply and create handoff)$/ });
+  await expect(approve).toBeEnabled();
+  await approve.click();
+  await expect(support.getByText("What happened")).toBeVisible({ timeout: 60_000 });
   await expect(support.getByText("No email or external write", { exact: false }).first()).toBeVisible();
 
   // 5. The customer now sees exactly the approved text.
