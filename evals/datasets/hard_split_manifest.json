@@ -1,0 +1,28 @@
+{
+  "dataset": "relayops-synthetic-hard-v1",
+  "unit_of_split": "root family",
+  "family_splits": {
+    "hard_code_in_body_export": "dev",
+    "hard_typo_signature": "dev",
+    "hard_version_near_miss": "dev",
+    "hard_entitlement_paraphrase": "dev",
+    "hard_conflicting_history": "validation",
+    "hard_uncommon_error": "validation",
+    "hard_incident_no_code": "validation",
+    "hard_ambiguous_slow": "test",
+    "hard_feature_paraphrase": "test",
+    "hard_security_subtle": "test"
+  },
+  "counts": {
+    "dev": 12,
+    "validation": 9,
+    "test": 9
+  },
+  "split_sha256": {
+    "dev": "251f38981e8913edc08603076e91f81844ac33c38443d381316bd577a361630a",
+    "validation": "e9ddac0416a8a77500a66d5772ee81d59f45149d3d4eff0e7ce15aa85fcab3fd",
+    "test": "31385f97cd1b328fd57134e17df2e4f5dbad676934cc7b8857bb198b8bd6eb59"
+  },
+  "test_split_status": "frozen; not run",
+  "notes": "No structured fields; facts only in free text. Synthetic and author-written."
+}

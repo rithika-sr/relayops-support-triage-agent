@@ -135,10 +135,11 @@ def rag_system(case: dict, ticket_id: str, as_of: datetime) -> dict[str, Any]:
             "parse_error": res.parse_error, "latency_ms": int((time.monotonic() - started) * 1000)}
 
 
-def agent_system(case: dict, ticket_id: str, as_of: datetime, principal: Any) -> dict[str, Any]:
+def agent_system(case: dict, ticket_id: str, as_of: datetime, principal: Any, execution: str = "agent") -> dict[str, Any]:
+    """execution='agent' is the adaptive investigator; 'selective' is the hybrid policy-first path."""
     started = time.monotonic()
     with session_scope() as db:
-        run = runs.start_run(db, principal, ticket_id, as_of=as_of)
+        run = runs.start_run(db, principal, ticket_id, as_of=as_of, execution=execution)
         run_id = run.id
     while worker.process_one("eval-worker"):
         pass
@@ -167,6 +168,8 @@ def agent_system(case: dict, ticket_id: str, as_of: datetime, principal: Any) ->
         out |= {"reply": prop.payload.get("customer_reply", ""), "issue_key": prop.payload.get("issue_key")
                 if prop.action_kind == "link_engineering_issue" else None,
                 "incident_id": prop.payload.get("incident_id"), "verification": ver["status"],
+                "handoff": prop.payload.get("handoff"), "questions": prop.payload.get("clarifying_questions") or [],
+                "claims": ver.get("claims", []),
                 "failed_checks": ver["failed"],
                 "cited_ok": (len(cited) if prov and prov["status"] == "pass" else 0, len(cited))}
     return out

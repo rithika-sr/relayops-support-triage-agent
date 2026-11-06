@@ -36,6 +36,12 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 DATASET = ROOT / "evals" / "datasets" / "cases.jsonl"
 MANIFEST = ROOT / "evals" / "datasets" / "split_manifest.json"
+HARD_DATASET = ROOT / "evals" / "datasets" / "hard_cases.jsonl"
+HARD_MANIFEST = ROOT / "evals" / "datasets" / "hard_split_manifest.json"
+PROGRESS = ROOT / "data" / "runtime" / "eval-progress"
+SYSTEMS = ("rules", "rag", "agent", "hybrid")
+# Recall is compared at one common k for every system; the agent's full evidence pool is reported separately.
+RECALL_K = 5
 RESULTS = ROOT / "evals" / "results"
 BASELINE = ROOT / "evals" / "baselines" / "offline.json"
 sys.path.insert(0, str(ROOT / "evals"))
@@ -82,6 +88,20 @@ def _prepare_db() -> None:
 
 def load_cases() -> list[dict]:
     return [json.loads(line) for line in DATASET.read_text().splitlines() if line.strip()]
+
+
+def load_hard_cases() -> list[dict]:
+    return [json.loads(line) for line in HARD_DATASET.read_text().splitlines() if line.strip()]
+
+
+def validate_hard(cases: list[dict]) -> list[str]:
+    manifest = json.loads(HARD_MANIFEST.read_text())
+    errors = []
+    for s, h in manifest["split_sha256"].items():
+        lines = [json.dumps(c, sort_keys=True) for c in cases if c["split"] == s]
+        if hashlib.sha256("\n".join(lines).encode()).hexdigest() != h:
+            errors.append(f"hard split {s} hash does not match manifest")
+    return errors
 
 
 def validate_dataset(cases: list[dict]) -> list[str]:
@@ -162,16 +182,43 @@ def score(case: dict, out: dict) -> dict[str, Any]:
         if not inc_ok:
             failures.append(f"incident {out.get('incident_id')} not in {g['acceptable_incident_ids']}")
     recall: tuple[int, int] | None = None
+    recall_pool: tuple[int, int] | None = None
     if g["required_evidence_slugs"]:
-        got = set(out.get("evidence_slugs") or [])
-        recall = (sum(1 for s in g["required_evidence_slugs"] if s in got), len(g["required_evidence_slugs"]))
+        ordered = list(dict.fromkeys(out.get("evidence_slugs") or []))
+        top = set(ordered[:RECALL_K])
+        recall = (sum(1 for s in g["required_evidence_slugs"] if s in top), len(g["required_evidence_slugs"]))
+        recall_pool = (sum(1 for s in g["required_evidence_slugs"] if s in set(ordered)), len(g["required_evidence_slugs"]))
+    clarify: bool | None = None
+    if g["route"] == "clarification":
+        text = " ".join([out.get("reply") or "", *(out.get("questions") or [])]).lower()
+        hints = [MISSING_HINTS.get(m, m.replace("_", " ")) for m in g["missing_facts"]]
+        clarify = out.get("route") == "clarification" and "?" in text and any(
+            re.search(h, text) for h in hints)
+    handoff: tuple[int, int] | None = None
+    if g["route"] == "new_engineering_handoff" and out.get("route") == "new_engineering_handoff" and out.get("handoff"):
+        h = out["handoff"]
+        fields = [bool(h.get("title")), bool(h.get("summary")), bool(h.get("component")), bool(h.get("team")),
+                  bool(h.get("observations")), bool(h.get("missing_facts"))]
+        handoff = (sum(fields), len(fields))
     violations = forbidden_violations(case, out)
     failures += [f"forbidden claim: {v}" for v in violations]
     if out.get("error"):
         failures.append(f"run error: {out['error']}")
     return {"route_correct": route_ok, "link_correct": link_ok, "incident_correct": inc_ok, "evidence_recall": recall,
+            "evidence_recall_pool": recall_pool, "clarification_ok": clarify, "handoff_fields": handoff,
             "violations": violations, "failures": failures,
             "status": "passed" if not failures else ("error" if out.get("error") and not out.get("route") else "failed")}
+
+
+MISSING_HINTS = {
+    "error_code": "error|code|message", "steps": "step|what (were|did) you", "error_message": "error|message",
+    "affected_users": "user|who|how many", "page_or_feature": "page|feature|where|which", "time": "when|time",
+    "project_name": "project", "what_is_missing": "which|what.*missing", "notification_type": "notification|which",
+    "example": "example", "integration_name": "integration|which", "invoice_number": "invoice",
+    "expected_amount": "amount|expect", "setting_name": "setting|which", "goal": "trying|goal|want",
+    "status_code": "status|code", "endpoint": "endpoint|which", "delivery_id": "delivery|id",
+    "endpoint_status": "endpoint|status|response",
+}
 
 
 def _metric(num: int, den: int) -> dict[str, Any]:
@@ -189,6 +236,19 @@ def summarize(system: str, rows: list[dict]) -> dict[str, Any]:
         d = per_route.setdefault(r["expected_route"], {"n": 0, "correct": 0})
         d["n"] += 1
         d["correct"] += int(bool(r["route_correct"]))
+    # Macro F1 over gold routes present in this subset.
+    f1s = []
+    for route in per_route:
+        tp = sum(1 for r in ran if r["expected_route"] == route and r.get("actual_route") == route)
+        fp = sum(1 for r in ran if r["expected_route"] != route and r.get("actual_route") == route)
+        fn = sum(1 for r in ran if r["expected_route"] == route and r.get("actual_route") != route)
+        p_, r_ = (tp / (tp + fp) if tp + fp else 0.0), (tp / (tp + fn) if tp + fn else 0.0)
+        f1s.append(2 * p_ * r_ / (p_ + r_) if p_ + r_ else 0.0)
+    proposed_links = [r for r in ran if r.get("issue_key")]
+    eligible_links = [r for r in ran if r.get("link_correct") is not None]
+    pool = [r["evidence_recall_pool"] for r in ran if r.get("evidence_recall_pool")]
+    clar = [r["clarification_ok"] for r in ran if r.get("clarification_ok") is not None]
+    hand = [r["handoff_fields"] for r in ran if r.get("handoff_fields")]
     q = statistics.quantiles(lat, n=20) if len(lat) >= 2 else None
     return {
         "system": system,
@@ -197,7 +257,15 @@ def summarize(system: str, rows: list[dict]) -> dict[str, Any]:
         "cases_errored": sum(1 for r in ran if r["status"] == "error"),
         "route_accuracy": _metric(sum(1 for r in ran if r["route_correct"]), len(ran)),
         "per_route": per_route,
-        "evidence_recall_at_k": _metric(sum(a for a, _ in rec), sum(b for _, b in rec)),
+        "route_macro_f1": round(sum(f1s) / len(f1s), 4) if f1s else None,
+        "evidence_recall_at_k": {**_metric(sum(a for a, _ in rec), sum(b for _, b in rec)), "k": RECALL_K},
+        "evidence_recall_full_pool": _metric(sum(a for a, _ in pool), sum(b for _, b in pool)),
+        "issue_link_precision": _metric(sum(1 for r in proposed_links if r.get("issue_key") in r.get("acceptable_issue_keys", [])),
+                                        len(proposed_links)),
+        "issue_link_recall": _metric(sum(1 for r in eligible_links if r["link_correct"]), len(eligible_links)),
+        "clarification_proxy": {**_metric(sum(1 for x in clar if x), len(clar)),
+                                "definition": "automatic proxy: asked a question that mentions a gold missing fact"},
+        "handoff_field_completeness": _metric(sum(a for a, _ in hand), sum(b for _, b in hand)),
         "provenance_validity": _metric(sum(a for a, _ in prov), sum(b for _, b in prov)),
         "issue_link_accuracy": _metric(sum(1 for x in links if x), len(links)),
         "forbidden_claim_cases": sum(1 for r in ran if r["violations"]),
@@ -298,10 +366,17 @@ def run_profile(args: argparse.Namespace) -> int:
     get_settings.cache_clear()
     cases = load_cases()
     errors = validate_dataset(cases)
+    hard = load_hard_cases()
+    errors += validate_hard(hard)
     if errors:
         print("DATASET INVALID:\n  " + "\n  ".join(errors))
         return 2
-    print(f"dataset ok: {len(cases)} cases")
+    print(f"dataset ok: {len(cases)} main cases, {len(hard)} hard cases")
+    pool = {"main": cases, "hard": hard, "both": cases + hard}[args.dataset]
+    unknown = [s for s in args.systems if s not in SYSTEMS]
+    if unknown:
+        print(f"unknown systems: {unknown}")
+        return 2
     _prepare_db()
     from sqlalchemy import select
 
@@ -331,14 +406,28 @@ def run_profile(args: argparse.Namespace) -> int:
         plan = {s: selected for s in args.systems}
         challenges = []
     else:
-        selected = [c for c in cases if c["split"] in (("dev", "validation", "test") if args.include_test else
-                                                         ("dev", "validation"))]
+        selected = [c for c in pool if c["split"] in (("dev", "validation", "test") if args.include_test else
+                                                        ("dev", "validation"))]
         if args.limit:
             selected = selected[: args.limit]
         plan = {s: selected for s in args.systems}
         challenges = [c for c in cases if c["split"] == "challenge"]
 
-    tag = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+    tag = args.resume or datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+    meta = metadata(args.profile, list(plan))  # captured before any case runs
+    meta["dataset_scope"] = args.dataset
+    meta["recall_k"] = RECALL_K
+    meta["config_hash"] = hashlib.sha256(json.dumps({k: meta[k] for k in (
+        "profile", "systems", "model", "model_digest", "embedding_model", "prompt_hash", "policy_version", "retrieval",
+        "chunking", "generation", "budgets", "split_sha256", "dataset_scope")}, sort_keys=True).encode()).hexdigest()
+    PROGRESS.mkdir(parents=True, exist_ok=True)
+    progress_path = PROGRESS / f"{args.profile}-{tag}.jsonl"
+    done: dict[tuple[str, str], dict] = {}
+    if args.resume and progress_path.exists():
+        for line in progress_path.read_text().splitlines():
+            r = json.loads(line)
+            done[(r["system"], r["case_id"])] = r
+        print(f"resuming {progress_path.name}: {len(done)} case-system pairs already recorded")
     if args.profile != "offline":
         provider = llm.get_provider()
         provider.chat_json(purpose="warmup", system="Return JSON.", user='{"ok": true}', schema={"type": "object"},
@@ -346,6 +435,9 @@ def run_profile(args: argparse.Namespace) -> int:
     results: list[dict] = []
     for system, chosen in plan.items():
         for i, case in enumerate(chosen):
+            if (system, case["case_id"]) in done:
+                results.append(done[(system, case["case_id"])])
+                continue
             row = {"case_id": case["case_id"], "family_id": case["family_id"], "category": case["category"],
                    "system": system, "split": case["split"], "expected_route": case["gold"]["route"],
                    "input": f"{case['ticket']['subject']}: {case['ticket']['body']}"}
@@ -355,6 +447,8 @@ def run_profile(args: argparse.Namespace) -> int:
                     out = sysmod.rules_system(case, tid, anchor)
                 elif system == "rag":
                     out = sysmod.rag_system(case, tid, anchor)
+                elif system == "hybrid":
+                    out = sysmod.agent_system(case, tid, anchor, staff, execution="selective")
                 else:
                     out = sysmod.agent_system(case, tid, anchor, staff)
                 sc = score(case, out)
@@ -366,8 +460,12 @@ def run_profile(args: argparse.Namespace) -> int:
                     "tool_path": out.get("tool_path"), "latency_ms": out.get("latency_ms"),
                     "model_calls": out.get("model_calls"), "tool_calls": out.get("tool_calls"),
                     "cited_ok": out.get("cited_ok"), "verification": out.get("verification"),
-                    "reply_excerpt": (out.get("reply") or "")[:300], "policy_version": "2026.11-r1", **sc}
+                    "reply_excerpt": (out.get("reply") or "")[:300], "policy_version": "2026.11-r1",
+                    "issue_key": out.get("issue_key"), "acceptable_issue_keys": case["gold"]["acceptable_issue_keys"],
+                    "slice": case.get("slice", "main"), **sc}
             results.append(row)
+            with progress_path.open("a") as fh:
+                fh.write(json.dumps(row, default=str) + "\n")
             print(f"[{system}] {i + 1}/{len(chosen)} {case['case_id']}: {row['status']} "
                   f"route={row['actual_route']} ({row['latency_ms']} ms)", flush=True)
 
@@ -393,14 +491,17 @@ def run_profile(args: argparse.Namespace) -> int:
             print(f"[challenge] {case['case_id']}: violations={violations} verified={passed_verification}")
         llm.set_provider(None)
 
-    total_planned = sum(1 for c in cases if c["split"] in ("dev", "validation", "test")) * 3
+    planned_cases = [c for c in pool if c["split"] in ("dev", "validation", "test")]
+    total_planned = len(planned_cases) * len(plan)
     ran = len(results)
     report = {
         "report_key": f"{args.profile}-{tag}",
         "profile": args.profile,
-        "metadata": metadata(args.profile, list(plan)),
+        "metadata": meta,
         "summary": {
             "systems": [summarize(s, [r for r in results if r["system"] == s]) for s in plan],
+            "by_slice": {sl: [summarize(s, [r for r in results if r["system"] == s and r.get("slice", "main") == sl])
+                              for s in plan] for sl in sorted({r.get("slice", "main") for r in results})},
             "challenge_suite": {"cases": len(challenge_rows),
                                 "unsafe_drafts_passing_verification": sum(1 for r in challenge_rows if r["status"] == "failed"),
                                 "drafts_with_violations": sum(1 for r in challenge_rows if r["violations_in_draft"])},
@@ -433,16 +534,22 @@ def markdown_summary(r: dict) -> str:
              f"- Provider/model: {r['metadata']['provider']} / {r['metadata']['model']} ({r['metadata']['model_digest']})",
              f"- Ran {r['summary']['ran_case_system_pairs']} case-system pairs; {r['summary']['unrun_cases']} of "
              f"{r['summary']['total_cases']} planned pairs unrun. Test split: {r['summary']['test_split']}.", "",
-             "| System | Run | Failed | Route accuracy | Evidence recall@k | Provenance | Issue links | Forbidden-claim cases | p50 / p95 ms |",
-             "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
+             "| System | Run | Errors | Route accuracy | Route macro F1 | Recall@5 | Recall (full pool) | Link precision | Link recall | Clarification proxy | Handoff fields | Provenance | Forbidden-claim cases | p50 / p95 ms |",
+             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |"]
 
     def f(m: dict) -> str:
         return "—" if m["value"] is None else f"{m['value']:.2f} ({m['numerator']}/{m['denominator']})"
 
-    for s in r["summary"]["systems"]:
-        lines.append(f"| {s['system']} | {s['cases_run']} | {s['cases_failed']} | {f(s['route_accuracy'])} | "
-                     f"{f(s['evidence_recall_at_k'])} | {f(s['provenance_validity'])} | {f(s['issue_link_accuracy'])} | "
-                     f"{s['forbidden_claim_cases']} | {s['latency_ms']['p50']} / {s['latency_ms']['p95']} |")
+    def rows(systems: list[dict]) -> list[str]:
+        return [f"| {x['system']} | {x['cases_run']} | {x['cases_errored']} | {f(x['route_accuracy'])} | "
+                f"{x['route_macro_f1'] if x['route_macro_f1'] is not None else '—'} | {f(x['evidence_recall_at_k'])} | "
+                f"{f(x['evidence_recall_full_pool'])} | {f(x['issue_link_precision'])} | {f(x['issue_link_recall'])} | "
+                f"{f(x['clarification_proxy'])} | {f(x['handoff_field_completeness'])} | {f(x['provenance_validity'])} | "
+                f"{x['forbidden_claim_cases']} | {x['latency_ms']['p50']} / {x['latency_ms']['p95']} |" for x in systems]
+
+    lines += rows(r["summary"]["systems"])
+    for sl, systems in r["summary"].get("by_slice", {}).items():
+        lines += ["", f"Slice `{sl}`:", "", lines[5], lines[6], *rows(systems)]
     cs = r["summary"]["challenge_suite"]
     lines += ["", f"Challenge suite: {cs['cases']} cases, unsafe drafts passing verification: "
                   f"{cs['unsafe_drafts_passing_verification']}, drafts containing violations: {cs['drafts_with_violations']}.",
@@ -480,9 +587,11 @@ def gates(report: dict) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--profile", choices=["offline", "live-smoke", "full"], required=True)
-    ap.add_argument("--systems", default="rules,rag,agent")
+    ap.add_argument("--systems", default="rules,rag,agent,hybrid")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--include-test", action="store_true", help="consume the frozen test split (final runs only)")
+    ap.add_argument("--dataset", choices=["main", "hard", "both"], default="main")
+    ap.add_argument("--resume", default="", help="timestamp tag of an interrupted run to continue")
     ap.add_argument("--write-baseline", action="store_true", help="record offline rules metrics as the gate baseline")
     args = ap.parse_args()
     args.systems = [s.strip() for s in args.systems.split(",") if s.strip()]
