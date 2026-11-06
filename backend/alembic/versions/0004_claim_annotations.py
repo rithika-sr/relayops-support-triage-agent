@@ -8,9 +8,7 @@ Create Date: 2026-11-06 11:18:48.784516
 from __future__ import annotations
 
 import sqlalchemy as sa
-import pgvector.sqlalchemy
 from alembic import op
-
 
 revision = "0004"
 down_revision = "0003"

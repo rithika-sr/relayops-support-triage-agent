@@ -1,6 +1,8 @@
 """Versioned deterministic support policy: entitlements, response targets, and priority.
 
-Targets are 24/7 elapsed hours. There is no business-hours calendar in this version.
+Targets are elapsed hours: 24/7 by default, or service hours from the organization's active service calendar
+(domain/calendars.py). Urgent targets stay 24/7 unless the calendar says it applies to urgent tickets. The due
+time is stored in UTC together with the calendar version that produced it.
 """
 
 from __future__ import annotations
@@ -9,6 +11,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
+
+from relayops.domain.calendars import Calendar, add_service_time
 
 POLICY_VERSION = "2026.11-r1"
 
@@ -51,13 +55,16 @@ class TargetDecision:
     reasons: tuple[str, ...]
     urgent_review: bool
     restricted: bool
+    calendar: Calendar | None = None
 
     def as_policy(self) -> dict[str, Any]:
         return {
             "policy_version": POLICY_VERSION,
             "priority": self.priority,
             "hours": self.hours,
-            "basis": "24/7 elapsed hours",
+            "basis": "service hours" if self.calendar else "24/7 elapsed hours",
+            "calendar": self.calendar.ref if self.calendar else None,
+            "calendar_timezone": self.calendar.timezone if self.calendar else None,
             "reasons": list(self.reasons),
             "urgent_review": self.urgent_review,
             "restricted": self.restricted,
@@ -75,7 +82,14 @@ def is_security_sensitive(text: str) -> bool:
 
 
 def decide_target(
-    *, plan: str, reported_severity: str, subject: str, body: str, created_at: datetime
+    *,
+    plan: str,
+    reported_severity: str,
+    subject: str,
+    body: str,
+    created_at: datetime,
+    calendar: Calendar | None = None,
+    calendar_applies_to_urgent: bool = False,
 ) -> TargetDecision:
     """Priority comes from the customer's stated severity plus plan, never from sentiment alone.
 
@@ -102,10 +116,20 @@ def decide_target(
         if PRIORITIES.index(priority) < PRIORITIES.index("high"):
             priority = "high"
     hours = FIRST_RESPONSE_HOURS[plan][priority]
-    reasons.append(f"{plan} plan first-response target for {priority}: {hours}h")
+    use_cal = calendar if calendar and (priority != "urgent" or calendar_applies_to_urgent) else None
+    reasons.append(
+        f"{plan} plan first-response target for {priority}: {hours}h"
+        + (f" of service time ({use_cal.ref}, {use_cal.timezone})" if use_cal else " elapsed")
+    )
+    due = (
+        add_service_time(use_cal, created_at, timedelta(hours=hours))
+        if use_cal
+        else created_at + timedelta(hours=hours)
+    )
     return TargetDecision(
         priority=priority,
-        due_at=created_at + timedelta(hours=hours),
+        due_at=due,
+        calendar=use_cal,
         hours=hours,
         reasons=tuple(reasons),
         urgent_review=urgent_review,

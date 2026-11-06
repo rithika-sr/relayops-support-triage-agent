@@ -24,6 +24,7 @@ from relayops.models import (
 )
 from relayops.repositories import scoped
 from relayops.services import audit
+from relayops.services import calendars as calendar_service
 
 STATUSES = ("open", "pending_review", "pending_customer", "resolved", "closed")
 SEVERITIES = ("low", "normal", "high", "critical")
@@ -97,8 +98,15 @@ def create_ticket(db: Session, p: Principal, raw: TicketInput) -> tuple[Ticket, 
             return existing, False
 
     now = utcnow()
+    cal = calendar_service.active(db, p.organization_id)
     decision = decide_target(
-        plan=account.plan, reported_severity=inp.reported_severity, subject=inp.subject, body=inp.body, created_at=now
+        plan=account.plan,
+        reported_severity=inp.reported_severity,
+        subject=inp.subject,
+        body=inp.body,
+        created_at=now,
+        calendar=cal[0] if cal else None,
+        calendar_applies_to_urgent=cal[1].applies_to_urgent if cal else False,
     )
     number = (
         db.execute(

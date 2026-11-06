@@ -1,5 +1,6 @@
 from relayops.models.annotations import ANNOTATION_VERDICTS, ClaimAnnotation
 from relayops.models.base import Base, new_id
+from relayops.models.calendars import ServiceCalendarVersion
 from relayops.models.identity import (
     ApiToken,
     AuthSession,
@@ -33,6 +34,7 @@ from relayops.models.runs import ActionRecord, InvestigationRun, Job, OutboxMess
 from relayops.models.tickets import SavedView, Ticket, TicketMessage
 
 __all__ = [
+    "ServiceCalendarVersion",
     "ANNOTATION_VERDICTS",
     "ClaimAnnotation",
     "SavedView",

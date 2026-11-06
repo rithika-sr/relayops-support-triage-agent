@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
+from zoneinfo import available_timezones
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -12,9 +14,10 @@ from relayops.api.deps import DB, admin_principal, current_principal, staff_prin
 from relayops.api.serializers import iso
 from relayops.core.config import get_settings
 from relayops.domain import policies
-from relayops.domain.scope import Principal
+from relayops.domain.scope import Principal, ValidationFailed
 from relayops.models import ApiToken, CustomerAccount, Invitation, Membership, User
 from relayops.services import auth as auth_service
+from relayops.services import calendars as calendar_service
 from relayops.services import retrieval
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -178,3 +181,51 @@ def create_token(body: TokenBody, p: Principal = Depends(admin_principal), db: S
 def revoke_token(token_id: str, p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, bool]:
     auth_service.revoke_api_token(db, p, token_id)
     return {"ok": True}
+
+
+class CalendarBody(BaseModel):
+    timezone: str = Field(min_length=1, max_length=64)
+    weekly: dict[str, list[list[str]]]
+    holidays: list[str] = Field(default_factory=list, max_length=200)
+    applies_to_urgent: bool = False
+
+
+class PreviewBody(BaseModel):
+    start: datetime
+    hours: float = Field(gt=0, le=24 * 30)
+
+
+@router.get("/calendars")
+def list_calendars(p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, Any]:
+    cur = calendar_service.active(db, p.organization_id)
+    return {
+        "active": cur[0].ref if cur else None,
+        "versions": calendar_service.versions(db, p),
+        "zones": sorted(available_timezones()),
+    }
+
+
+@router.post("/calendars", status_code=201)
+def create_calendar(body: CalendarBody, p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, Any]:
+    row = calendar_service.create_version(
+        db,
+        p,
+        timezone=body.timezone,
+        weekly=body.weekly,
+        holidays=body.holidays,
+        applies_to_urgent=body.applies_to_urgent,
+    )
+    return calendar_service.as_dict(row)
+
+
+@router.post("/calendars/deactivate")
+def deactivate_calendar(p: Principal = Depends(admin_principal), db: Session = DB) -> dict[str, Any]:
+    calendar_service.deactivate(db, p)
+    return {"active": None}
+
+
+@router.post("/calendars/preview")
+def preview_calendar(body: PreviewBody, p: Principal = Depends(staff_principal), db: Session = DB) -> dict[str, Any]:
+    if body.start.tzinfo is None:
+        raise ValidationFailed("start must include a UTC offset")
+    return calendar_service.preview(db, p, start=body.start, hours=body.hours)

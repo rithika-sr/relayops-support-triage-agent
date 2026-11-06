@@ -52,6 +52,7 @@ export const SECTIONS: NavSection[] = [
     tabs: [
       { href: "/app/settings", label: "General" },
       { href: "/app/settings/integrations", label: "Integrations" },
+      { href: "/app/settings/service-hours", label: "Service hours" },
       { href: "/app/audit", label: "Audit", roles: ["admin"] },
     ] },
 ];
