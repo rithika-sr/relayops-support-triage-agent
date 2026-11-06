@@ -92,7 +92,7 @@ class FindSimilarCasesArgs(_Args):
 
 
 class SearchIssuesArgs(_Args):
-    query: str = Field(min_length=2, max_length=300)
+    query: str = Field(default="", max_length=300)
     component: str | None = Field(default=None, max_length=32)
     error_signature: str | None = Field(default=None, max_length=80)
     product_version: str | None = Field(default=None, max_length=16)

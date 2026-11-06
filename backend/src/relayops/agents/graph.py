@@ -21,12 +21,13 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 
-from relayops.agents import prompts
+from relayops.agents import policy, prompts
 from relayops.agents.llm import get_provider
 from relayops.agents.outputs import Extraction, NextAction, Reply, RouteProposal
 from relayops.core.clock import utcnow
 from relayops.core.config import get_settings
 from relayops.core.db import session_scope
+from relayops.core.security import content_hash
 from relayops.domain.incidents import normalize_signature
 from relayops.domain.policies import entitlements_for
 from relayops.domain.routes import ROUTE_ACTION, ActionKind, Route
@@ -51,6 +52,8 @@ class RunState(TypedDict, total=False):
     model_calls: int
     repairs: int
     stop_reason: str | None
+    trusted: dict[str, Any]
+    decision: dict[str, Any]
     route_proposal: dict[str, Any]
     reply: dict[str, Any]
     proposal_id: str
@@ -181,6 +184,7 @@ def load_context(state: RunState) -> dict[str, Any]:
             "playbook": {"key": run.playbook_key, "revision": run.playbook_revision, **cfg},
             "as_of": as_of,
             "organization_id": run.organization_id,
+            "execution": run.budgets.get("execution", cfg.get("execution", "agent")),
         }
         budgets = {k: run.budgets[k] for k in ("max_turns", "max_tool_calls", "max_repairs", "deadline_seconds")}
     runs.emit(
@@ -340,13 +344,36 @@ def investigate(state: RunState) -> dict[str, Any]:
                 result_limit=get_settings().tool_result_limit,
             )
             previous = {(o["tool"], json.dumps(o["args"], sort_keys=True)) for o in observations}
+            repeats = sum(1 for o in observations if o["status"] == "repeated")
             for call in out.tool_calls[:MAX_CALLS_PER_TURN]:
                 if tool_calls >= b["max_tool_calls"]:
                     stop = "budget_exhausted"
                     break
                 runs.check_alive(run_id)
-                tool_calls += 1
                 sig = (call.tool, json.dumps(call.args, sort_keys=True))
+                if sig in previous:
+                    repeats += 1
+                    prior = next(
+                        (o for o in observations if (o["tool"], json.dumps(o["args"], sort_keys=True)) == sig), None
+                    )
+                    observations.append(
+                        {
+                            "turn": turns,
+                            "tool": call.tool,
+                            "args": call.args,
+                            "status": "repeated",
+                            "summary": "Not run again: identical to an earlier call"
+                            + (f" whose result was '{prior['status']}: {prior['summary']}'" if prior else "")
+                            + ". Change the arguments, use another tool, or finish.",
+                            "evidence_ids": prior["evidence_ids"] if prior else [],
+                        }
+                    )
+                    runs.emit(run_id, "tool_repeat_skipped", "investigate", {"tool": call.tool, "args": call.args})
+                    if repeats >= 2:
+                        stop = "no_new_information"
+                        break
+                    continue
+                tool_calls += 1
                 runs.emit(
                     run_id,
                     "tool_call",
@@ -354,17 +381,8 @@ def investigate(state: RunState) -> dict[str, Any]:
                     {"tool": call.tool, "args": call.args, "turn": turns, "call_number": tool_calls},
                 )
                 obs_d: dict[str, Any]
-                if sig in previous:
-                    obs_d = {
-                        "tool": call.tool,
-                        "status": "failed",
-                        "summary": "Repeated identical call skipped.",
-                        "evidence": [],
-                        "data": {},
-                    }
-                else:
-                    with session_scope() as db:
-                        obs_d = dispatch(db, tctx, call.tool, call.args).as_dict()
+                with session_scope() as db:
+                    obs_d = dispatch(db, tctx, call.tool, call.args).as_dict()
                 previous.add(sig)
                 ids = _register(evidence, obs_d["evidence"])
                 observations.append(
@@ -411,6 +429,98 @@ def investigate(state: RunState) -> dict[str, Any]:
     return new_state
 
 
+def precheck(state: RunState) -> dict[str, Any]:
+    """Trusted, code-run lookups recorded for every run. Only the selective path routes on them."""
+    run_id, ctx, ex = state["run_id"], state["context"], state["extraction"]
+    t = ctx["ticket"]
+    text = f"{t['subject']}\n" + "\n".join(m["body"] for m in t["messages"])
+    with session_scope() as db:
+        facts = policy.gather(
+            db,
+            organization_id=ctx["organization_id"],
+            customer_account_id=ctx["account"]["id"],
+            as_of=datetime.fromisoformat(ctx["as_of"]),
+            component=ex.get("component"),
+            version=ex.get("product_version"),
+            error_code=ex.get("error_code"),
+            text=text,
+            entitlements=ctx["account"]["entitlements"],
+        )
+    decision = policy.decide(facts, restricted=t["restricted"], allowed_routes=ctx["playbook"]["allowed_routes"])
+    execution = ctx.get("execution", "agent")
+    evidence = dict(state["evidence"])
+    if execution == "selective" and decision.decisive:
+        items = []
+        if decision.issue:
+            i = decision.issue
+            items.append(
+                {
+                    "source_type": "issue",
+                    "source_id": i["id"],
+                    "title": f"{i['key']}: {i['title']}",
+                    "excerpt": f"status={i['status']}; affected_versions={','.join(i['affected_versions'])}; "
+                    f"signature={i['error_signature']}. {i['description']}"[:420],
+                    "visibility": "internal",
+                    "version": None,
+                    "content_hash": None,
+                    "kind": i["kind"],
+                    "authority": None,
+                    "timestamp": i["updated_at"],
+                    "meta": {
+                        "key": i["key"],
+                        "status": i["status"],
+                        "match": i["match"],
+                        "component": i["component"],
+                        "affected_versions": i["affected_versions"],
+                        "fixed_in_version": i["fixed_in_version"],
+                    },
+                }
+            )
+        if decision.incident:
+            inc = decision.incident
+            items.append(
+                {
+                    "source_type": "incident",
+                    "source_id": inc["id"],
+                    "title": inc["title"],
+                    "excerpt": f"status={inc['status']}; public={inc['public_visible']}; "
+                    f"public_summary={inc['public_summary'] or 'none'}"[:420],
+                    "visibility": "public" if inc["public_visible"] else "internal",
+                    "version": None,
+                    "content_hash": None,
+                    "kind": None,
+                    "authority": None,
+                    "timestamp": inc["started_at"],
+                    "meta": inc,
+                }
+            )
+        for it in items:
+            it["snapshot_hash"] = content_hash(
+                {k: it[k] for k in ("source_type", "source_id", "version", "content_hash", "excerpt")}
+            )
+        _register(evidence, items)
+    runs.emit(
+        run_id,
+        "trusted_lookup",
+        "precheck",
+        {
+            "facts": facts.as_dict(),
+            "decision": decision.as_dict(),
+            "execution": execution,
+            "applied": execution == "selective" and decision.decisive,
+        },
+        current_node="investigate",
+    )
+    return {"trusted": facts.as_dict(), "decision": decision.as_dict(), "evidence": evidence}
+
+
+def after_precheck(state: RunState) -> str:
+    d = state.get("decision") or {}
+    if state["context"].get("execution") == "selective" and d.get("route"):
+        return "propose"
+    return "investigate"
+
+
 def after_investigate(state: RunState) -> str:
     return "propose" if state.get("stop_reason") else "investigate"
 
@@ -440,7 +550,11 @@ def propose(state: RunState) -> dict[str, Any]:
     allowed = [Route(r) for r in ctx["playbook"]["allowed_routes"]]
     rp: RouteProposal | None = None
     delta: dict[str, Any] = {}
-    if state.get("stop_reason") != "deadline_exceeded":
+    decision = state.get("decision") or {}
+    selective = ctx.get("execution") == "selective" and decision.get("route")
+    if selective:
+        rp = _policy_proposal(state, decision)
+    elif state.get("stop_reason") != "deadline_exceeded":
         try:
             out, delta = _call_model(
                 state,
@@ -567,6 +681,48 @@ def propose(state: RunState) -> dict[str, Any]:
         usage=_usage(state, delta),
     )  # type: ignore[typeddict-item]
     return {"route_proposal": proposal, **delta}
+
+
+def _policy_proposal(state: RunState, decision: dict[str, Any]) -> RouteProposal:
+    """Route chosen by the typed policy; handoff text is assembled from records, not invented."""
+    ctx, facts = state["context"], state.get("trusted") or {}
+    evidence = state["evidence"]
+    issue_eid = next(
+        (k for k, v in evidence.items() if decision.get("issue") and v["source_id"] == decision["issue"]["id"]), None
+    )
+    inc_eid = next(
+        (k for k, v in evidence.items() if decision.get("incident") and v["source_id"] == decision["incident"]["id"]),
+        None,
+    )
+    t = ctx["ticket"]
+    reported = (
+        (
+            f"Customer reports {facts.get('signature')} on version {facts.get('version')} "
+            f"({facts.get('signature_basis')} signature)."
+        )
+        if facts.get("signature")
+        else None
+    )
+    observations = [x for x in [reported, decision["explanation"]] if x]
+    missing = []
+    if decision["route"] == "new_engineering_handoff":
+        missing = ["steps_to_reproduce", "first_occurrence_time"]
+    return RouteProposal(
+        route=Route(decision["route"]),
+        rationale=f"Policy rule '{decision['rule']}': {decision['explanation']}",
+        evidence_ids=[e for e in (issue_eid, inc_eid) if e],
+        issue_evidence_id=issue_eid,
+        incident_evidence_id=inc_eid,
+        missing_facts=missing,
+        observations=observations,
+        hypotheses=[],
+        handoff_title=t["subject"][:120] if decision["route"] == "new_engineering_handoff" else None,
+        handoff_summary=(
+            f"{t['messages'][0]['body'][:400]} {decision['explanation']}"
+            if decision["route"] == "new_engineering_handoff" and t["messages"]
+            else None
+        ),
+    )
 
 
 SECURITY_REPLY = (
@@ -770,6 +926,7 @@ def build_graph(checkpointer: Any) -> Any:
     for name, fn in [
         ("load_context", load_context),
         ("extract", extract),
+        ("precheck", precheck),
         ("investigate", investigate),
         ("propose", propose),
         ("draft_reply", draft_reply),
@@ -781,7 +938,8 @@ def build_graph(checkpointer: Any) -> Any:
         g.add_node(name, fn)
     g.add_edge(START, "load_context")
     g.add_edge("load_context", "extract")
-    g.add_edge("extract", "investigate")
+    g.add_edge("extract", "precheck")
+    g.add_conditional_edges("precheck", after_precheck, {"investigate": "investigate", "propose": "propose"})
     g.add_conditional_edges("investigate", after_investigate, {"investigate": "investigate", "propose": "propose"})
     g.add_edge("propose", "draft_reply")
     g.add_edge("draft_reply", "verify")

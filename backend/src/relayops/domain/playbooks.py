@@ -20,6 +20,7 @@ READ_TOOLS = (
 GRAPH_NODES = (
     ("load_context", "Load trusted context", "code"),
     ("extract", "Extract facts", "model"),
+    ("precheck", "Trusted record lookups", "code"),
     ("investigate", "Adaptive investigation", "model+tools"),
     ("propose", "Choose route and handoff", "model"),
     ("draft_reply", "Draft customer reply (public evidence only)", "model"),
@@ -40,6 +41,8 @@ class PlaybookConfig(BaseModel):
     max_tool_calls: int = Field(ge=1, le=6)
     required_facts: list[str] = Field(default_factory=list, max_length=8)
     retrieval_mode: str = Field(default="rrf", pattern="^(lexical|dense|rrf)$")
+    # agent: adaptive investigation every time. selective: typed policy first, adaptive only when ambiguous.
+    execution: str = Field(default="agent", pattern="^(agent|selective)$")
 
     @field_validator("allowed_tools")
     @classmethod

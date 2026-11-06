@@ -140,7 +140,7 @@ def test_playbooks_are_typed_versioned_and_admin_editable(db, tmp_path):
     pbs = support.get("/api/playbooks").json()
     assert {p["key"] for p in pbs} == {"howto", "bug", "feature", "incident"}
     d = support.get("/api/playbooks/howto").json()
-    assert [n["id"] for n in d["graph"]["nodes"]][:3] == ["load_context", "extract", "investigate"]
+    assert [n["id"] for n in d["graph"]["nodes"]][:4] == ["load_context", "extract", "precheck", "investigate"]
     cfg = {**d["config"], "max_turns": 2}
     assert support.post("/api/playbooks/howto/revisions", json={"config": cfg}).status_code == 403
     bad = admin.post("/api/playbooks/howto/revisions", json={"config": {**cfg, "allowed_tools": ["shell"]}})

@@ -127,6 +127,8 @@ def graph_view(events: list[RunEvent], run: InvestigationRun) -> list[dict[str, 
     }
     if any(e.kind == "proposal_created" for e in events):
         done.add("verify")
+    if any(e.kind == "trusted_lookup" for e in events):
+        done.add("precheck")
     if any(e.kind == "awaiting_review" for e in events):
         started.add("review")
     if any(e.kind in ("action_result", "run_finished") for e in events if e.node in ("act", "audit_outcome")):

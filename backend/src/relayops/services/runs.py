@@ -55,6 +55,7 @@ def start_run(
     retrieval_mode: str | None = None,
     compare_of_run_id: str | None = None,
     as_of: datetime | None = None,
+    execution: str | None = None,
 ) -> InvestigationRun:
     """`as_of` pins the evidence clock (evaluation and replay of historical cases); the API never sets it."""
     scoped.require_staff(p)
@@ -120,7 +121,12 @@ def start_run(
             "embed_model": provider.embed_model,
             "lexical_engine": "postgres ts_rank_cd",
         },
-        budgets={**budgets, "playbook": cfg.model_dump(mode="json"), **({"as_of": as_of.isoformat()} if as_of else {})},
+        budgets={
+            **budgets,
+            "playbook": cfg.model_dump(mode="json"),
+            **({"as_of": as_of.isoformat()} if as_of else {}),
+            **({"execution": execution} if execution in ("agent", "selective") else {}),
+        },
         usage={"turns": 0, "tool_calls": 0, "model_calls": 0, "repairs": 0},
         created_by_user_id=p.user_id,
     )
